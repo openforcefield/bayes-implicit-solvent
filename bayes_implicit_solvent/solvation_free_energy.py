@@ -1,9 +1,9 @@
 import numpy as np
 import pymbar
+from pkg_resources import resource_filename
 
 from bayes_implicit_solvent.utils import get_gbsa_force, get_nb_force
 
-from pkg_resources import resource_filename
 path_to_freesolv = resource_filename('bayes_implicit_solvent', 'data/FreeSolv-0.51/database.txt')
 
 with open(path_to_freesolv, 'r') as f:
@@ -36,10 +36,23 @@ from openmmtools.integrators import BAOABIntegrator
 from openmmtools.constants import kB
 
 temperature = 298 * unit.kelvin
+stepsize = 1.0 * unit.femtosecond
+collision_rate = 1.0 / unit.picosecond
 beta = 1.0 / (kB * temperature)
 
 
 def construct_gbsa_force(system):
+    """Creates a GBSAOBCForce with the same charges as in system.
+
+    Parameters
+    ----------
+    system : OpenMM System
+
+    Returns
+    -------
+    gbsa : openmm.GBSAOBCForce
+        force with the same particle charges as in system, but radius[i]=scalingFactor[i]=1.0
+    """
     nb_force = get_nb_force(system)
 
     gbsa = mm.GBSAOBCForce()
@@ -50,11 +63,31 @@ def construct_gbsa_force(system):
 
 
 def get_vacuum_samples(topology, system, positions, n_samples=100, thinning=10000):
+    """Runs a simulation for n_samples * thinning timesteps and returns snapshots.
+
+    Parameters
+    ----------
+    topology : OpenMM Topology
+    system : OpenMM System
+    positions : [n_atoms x 3] array of floats, unit'd or assumed to be in nanometers
+        initial atomic coordinates
+    n_samples : integer
+        number of samples to collect
+    thinning : integer
+        number of integrator steps between saved snapshots
+
+    Returns
+    -------
+    vacuum_sim : OpenMM Simulation
+        simulation constructed from topology, system, BAOABIntegrator, and reference platform
+    vacuum_traj : len(n_samples)-list of unit'd [n_atoms x 3] float-arrays
+        samples collected at vacuum state
+    """
     vacuum_sim = app.Simulation(topology,
                                 system,
                                 BAOABIntegrator(temperature=temperature,
-                                                collision_rate=1.0 / unit.picosecond,
-                                                timestep=1.0 * unit.femtosecond,
+                                                collision_rate=collision_rate,
+                                                timestep=stepsize,
                                                 measure_heat=False,
                                                 measure_shadow_work=False,
                                                 ),
@@ -73,21 +106,32 @@ def get_vacuum_samples(topology, system, positions, n_samples=100, thinning=1000
     return vacuum_sim, vacuum_traj
 
 
-from simtk import unit
-
 from copy import deepcopy
 
 
 def create_implicit_sim(topology, system):
-    """Implicit solvent will be force group 0, everything else will be force group 1"""
+    """Creates an OpenMM simulation with an implicit-solvent force in fg0.
+
+    Parameters
+    ----------
+    topology : OpenMM Topology
+    system : OpenMM System
+        system to deepcopy and add a GBSAOBCForce to...
+        shouldn't include an implicit solvent force already!
+
+    Returns
+    -------
+    implicit_sim : OpenMM Simulation
+        Implicit solvent force will be force group 0, everything else will be force group 1
+    """
     gbsa = construct_gbsa_force(system)
     new_system = deepcopy(system)
     new_system.addForce(gbsa)
 
     implicit_sim = app.Simulation(topology,
                                   new_system,
-                                  mm.LangevinIntegrator(298 * unit.kelvin, 1.0 / unit.picosecond,
-                                                        1.0 * unit.femtosecond),
+                                  mm.LangevinIntegrator(temperature,  # note: expected to be unused
+                                                        stepsize),  # note: expected to be unused
                                   platform=mm.Platform.getPlatformByName('Reference')
                                   )
 
@@ -99,33 +143,55 @@ def create_implicit_sim(topology, system):
     return implicit_sim
 
 
-def get_implicit_u_diffs(implicit_sim, x):
-    u_diff = np.zeros(len(x))
-    for i in range(len(x)):
-        implicit_sim.context.setPositions(x[i])
+def get_implicit_u_diffs(implicit_sim, samples):
+    """Get reduced-potential energy differences for all samples.
+
+    Parameters
+    ----------
+    implicit_sim : OpenMM Simulation
+        simulation object containing the implicit solvent force in force-group 0, and all other forces in other force-groups...
+
+    samples : [n_samples x n_atoms x 3] array of floats, unit'd or assumed to be in nanometers
+        assumed to be drawn from equilibrium for vacuum version of implicit_sim
+
+    Returns
+    -------
+    u_diff : numpy array, dtype=float
+        reduced-potential energy differences for all samples
+        u_diff[i] = u_implicit(samples[i]) - u_vacuum(samples[i])
+
+    """
+    u_diff = np.zeros(len(samples))
+    for i in range(len(samples)):
+        implicit_sim.context.setPositions(samples[i])
         u_diff[i] = beta * implicit_sim.context.getState(getEnergy=True, groups={0}).getPotentialEnergy()
     return u_diff
 
 
-def initialize_molecule_representation(mol_index_in_smiles_list):
-    mol, top, sys, pos = mol_top_sys_pos_list[mol_index_in_smiles_list]
-    # atom_names = [a.name for a in top.atoms()]
-
-    # vacuum_sim, vacuum_traj = get_vacuum_samples(top, sys, pos, n_samples=50, thinning=50000)
-
-    deepcopy(sys)
-
-    experimental_value = beta * (float(db[mol_index_in_freesolv][3]) * unit.kilocalorie_per_mole)
-
-    experimental_uncertainty = beta * (float(db[mol_index_in_freesolv][4]) * unit.kilocalorie_per_mole)
-
-    implicit_sim = create_implicit_sim(top, sys)
-
-    return mol, top, sys, pos, experimental_value, experimental_uncertainty, implicit_sim
-
-
 def predict_solvation_free_energy(implicit_sim, radii, vacuum_traj):
+    """Apply one-sided EXP to estimate GBSA-predicted solvation free energy at the specified Born radii, given vacuum samples.
+
+    Parameters
+    ----------
+    implicit_sim : OpenMM Simulation
+        simulation object containing the implicit solvent force in force-group 0, and all other forces in other force-groups...
+
+    radii : array of floats, unit'd or assumed to be in nanometers
+        Born radii for all atoms
+
+    vacuum_traj : [n_samples x n_atoms x 3] array of floats, unit'd or assumed to be in nanometers
+        collection of samples drawn from equilibrium for a system identical to implicit_sim, minus the GBSA force
+
+    Returns
+    -------
+    mean : float, unitless (kT)
+        one-sided EXP estimate of solvation free energy
+    uncertainty : float, unitless (kT)
+        closed-form estimate of uncertainty (stddev) of the one-sided EXP estimate
+        # TODO: detect when this is likely an underestimate of the uncertainty, and return bootstrapped estimate instead...
+    """
     gbsa = get_gbsa_force(implicit_sim.context.getSystem())
+    # TODO: Check occasionally that the force group partition matches expectation?
 
     for i in range(len(radii)):
         charge = gbsa.getParticleParameters(i)[0]
@@ -137,41 +203,6 @@ def predict_solvation_free_energy(implicit_sim, radii, vacuum_traj):
 
     gbsa.updateParametersInContext(implicit_sim.context)
     u_diffs = get_implicit_u_diffs(implicit_sim, vacuum_traj)
-    mean, unc = pymbar.EXP(u_diffs)
+    mean, uncertainty = pymbar.EXP(u_diffs)
 
-    return mean, unc
-
-
-if __name__ == '__main__':
-    # let's find one of the smallest molecules
-    n_atom_list = [len(t[-1]) for t in mol_top_sys_pos_list]
-
-    mol_index = np.argmin(n_atom_list)
-    smiles = smiles_list[mol_index]
-
-    smallest_n_atoms = min(n_atom_list)
-    mol_indices = [i for i in range(len(n_atom_list)) if n_atom_list[i] == smallest_n_atoms]
-    smiles_of_smallest_molecules = [smiles_list[mol_index] for mol_index in mol_indices]
-    print(smiles_of_smallest_molecules)
-
-    for n in sorted(list(set(n_atom_list))):
-        mol_indices = [i for i in range(len(n_atom_list)) if n_atom_list[i] == n]
-        print('# atoms: {}'.format(n))
-        print('\t' + str([smiles_list[mol_index] for mol_index in mol_indices]) + '\n')
-
-    # pick one with 5 atoms and 3 distinct elements
-    smiles = 'C(F)(F)(F)Br'
-    mol_index_in_smiles_list = -1
-    for i in range(len(smiles_list)):
-        if smiles_list[i] == smiles:
-            mol_index_in_smiles_list = i
-
-    mol_index_in_freesolv = -1
-    for i in range(len(db)):
-        if db[i][1] == smiles:
-            mol_index_in_freesolv = i
-
-    print(db[mol_index_in_freesolv])
-
-    mol_name = db[mol_index_in_freesolv][2]
-    print('mol_name : ', mol_name)
+    return mean, uncertainty
