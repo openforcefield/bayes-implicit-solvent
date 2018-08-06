@@ -3,9 +3,9 @@
 
 # takes approximately 3hours to run serially, and outputs a pickle file
 
-import os.path
+import os
 
-data_path = '../data/'
+data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/')
 
 path_to_freesolv = os.path.join(data_path, 'FreeSolv-0.51/database.txt')
 
