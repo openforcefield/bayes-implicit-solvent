@@ -70,7 +70,7 @@ def generate_mol_top_sys_pos(smiles):
     return mol, topology, system, positions
 
 
-# sort in order of decreasing SMILES-string length
+# sort in order of decreasing SMILES-string length, and remove duplicates
 sorted_smiles = sorted(list(set(smiles_list)), key=len)[::-1]
 
 mol_top_sys_pos_list = []
