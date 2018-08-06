@@ -8,7 +8,7 @@ experiments with Bayesian calibration of implicit solvent models
 from __future__ import absolute_import
 
 # Add imports here
-from .bayes_implicit_solvent import *
+from bayes_implicit_solvent import posterior_sampling, samplers, utils
 
 # Handle versioneer
 from ._version import get_versions
