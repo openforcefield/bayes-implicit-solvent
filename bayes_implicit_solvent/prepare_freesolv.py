@@ -3,9 +3,9 @@
 
 # takes approximately 3hours to run serially, and outputs a pickle file
 
-import os
-
+# TODO: Ensure this works correctly -- I think this may look in the wrong directory...
 from pkg_resources import resource_filename
+
 path_to_freesolv = resource_filename('bayes_implicit_solvent', 'data/FreeSolv-0.51/database.txt')
 
 from tqdm import tqdm
@@ -14,6 +14,7 @@ with open(path_to_freesolv, 'r') as f:
     freesolv = f.read()
 
 legend = freesolv.split('\n')[2].split('; ')
+print('FreeSolv column labels')
 print(list(zip(range(len(legend)), legend)))
 
 db = []
@@ -36,7 +37,7 @@ from openeye import oechem  # OpenEye Python toolkits
 
 from openeye import oequacpac  # Charge toolkit
 
-ff = ForceField(os.path.join(data_path, 'smirnoff99Frosst.offxml'))
+ff = ForceField(resource_filename('bayes_implicit_solvent', 'data/smirnoff99Frosst.offxml'))
 
 
 def generate_oemol(smiles):
@@ -69,6 +70,7 @@ def generate_mol_top_sys_pos(smiles):
     return mol, topology, system, positions
 
 
+# sort in order of decreasing SMILES-string length
 sorted_smiles = sorted(list(set(smiles_list)), key=len)[::-1]
 
 mol_top_sys_pos_list = []
@@ -78,8 +80,10 @@ for smiles in tqdm(sorted_smiles):
 
 from pickle import dump
 
+# save list of (mol, topology, system, positions) tuples, in the order of the sorted smiles list
 with open(resource_filename('bayes_implicit_solvent', 'data/mol_top_sys_pos.pkl'), 'wb') as f:
     dump(mol_top_sys_pos_list, f)
 
+# save the sorted smiles list
 with open(resource_filename('bayes_implicit_solvent', 'data/sorted_smiles.pkl'), 'wb') as f:
     dump(sorted_smiles, f)
