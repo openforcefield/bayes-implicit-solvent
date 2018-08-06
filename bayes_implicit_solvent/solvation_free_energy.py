@@ -1,11 +1,10 @@
-import os.path
 import numpy as np
 import pymbar
 
 from bayes_implicit_solvent.utils import get_gbsa_force, get_nb_force
 
-data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/')
-path_to_freesolv = os.path.join(data_path, 'FreeSolv-0.51/database.txt')
+from pkg_resources import resource_filename
+path_to_freesolv = resource_filename('bayes_implicit_solvent', 'data/FreeSolv-0.51/database.txt')
 
 with open(path_to_freesolv, 'r') as f:
     freesolv = f.read()
@@ -22,10 +21,10 @@ db = load_freesolv()
 
 from pickle import load
 
-with open('mol_top_sys_pos.pkl', 'rb') as f:
+with open(resource_filename('bayes_implicit_solvent', 'data/mol_top_sys_pos.pkl'), 'rb') as f:
     mol_top_sys_pos_list = load(f)
 
-with open('sorted_smiles.pkl', 'rb') as f:
+with open(resource_filename('bayes_implicit_solvent', 'data/sorted_smiles.pkl'), 'rb') as f:
     smiles_list = load(f)
 
 from simtk.openmm import app

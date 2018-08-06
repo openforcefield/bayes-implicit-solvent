@@ -5,9 +5,8 @@
 
 import os
 
-data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/')
-
-path_to_freesolv = os.path.join(data_path, 'FreeSolv-0.51/database.txt')
+from pkg_resources import resource_filename
+path_to_freesolv = resource_filename('bayes_implicit_solvent', 'data/FreeSolv-0.51/database.txt')
 
 from tqdm import tqdm
 
@@ -79,8 +78,8 @@ for smiles in tqdm(sorted_smiles):
 
 from pickle import dump
 
-with open(os.path.join(data_path, 'mol_top_sys_pos.pkl'), 'wb') as f:
+with open(resource_filename('bayes_implicit_solvent', 'data/mol_top_sys_pos.pkl'), 'wb') as f:
     dump(mol_top_sys_pos_list, f)
 
-with open(os.path.join(data_path, 'sorted_smiles.pkl'), 'wb') as f:
+with open(resource_filename('bayes_implicit_solvent', 'data/sorted_smiles.pkl'), 'wb') as f:
     dump(sorted_smiles, f)
