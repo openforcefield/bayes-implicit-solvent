@@ -23,7 +23,11 @@ setup(
     # Optional include package data to ship with your package
     # Comment out this line to prevent the files from being packaged with your software
     # Extend/modify the list to include/exclude other items as need be
-    package_data={'bayes_implicit_solvent': ["data/*.dat"]
+    package_data={'bayes_implicit_solvent': ["data/FreeSolv-0.51/*.txt",
+                                             "data/FreeSolv-0.51/*.json",
+                                             "data/*.pkl",
+                                             "data/*.offxml",
+                                             ]
                   },
 
     # Additional entries you may want simply uncomment the lines you want and fill in the data
