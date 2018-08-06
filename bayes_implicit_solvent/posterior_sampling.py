@@ -1,7 +1,9 @@
 import numpy as np
+from simtk import unit
+
 from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_energy, \
     get_vacuum_samples, db, smiles_list, mol_top_sys_pos_list, create_implicit_sim, beta
-from simtk import unit
+
 
 class Molecule():
     def __init__(self, smiles, verbose=False):
@@ -103,7 +105,7 @@ class Molecule():
         mean : float
         uncertainty : float
         """
-        assert(len(radii) == self.n_atoms)
+        assert (len(radii) == self.n_atoms)
         return predict_solvation_free_energy(self.implicit_sim, radii, self.vacuum_traj)
 
     def log_likelihood(self, radii):
