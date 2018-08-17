@@ -1,3 +1,12 @@
+from openeye import oechem
+
+
+def smiles_to_mol(smiles):
+    mol = oechem.OEGraphMol()
+    oechem.OESmilesToMol(mol, smiles)
+    return mol
+
+
 def get_gbsa_force(system):
     for force in system.getForces():
         if "GBSA" in force.__class__.__name__:
