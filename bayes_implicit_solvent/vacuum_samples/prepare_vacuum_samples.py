@@ -24,4 +24,4 @@ if __name__ == '__main__':
 
     xyz = np.array([snapshot / unit.nanometer for snapshot in vacuum_traj])
     vacuum_traj = md.Trajectory(xyz, md.Topology().from_openmm(top))
-    vacuum_traj.save_hdf5('vacuum_samples_{}.h5')
+    vacuum_traj.save_hdf5('vacuum_samples_{}.h5'.format(job_id - 1))
