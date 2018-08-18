@@ -1,6 +1,7 @@
 from bayes_implicit_solvent.solvation_free_energy import get_vacuum_samples, mol_top_sys_pos_list
 import numpy as np
-
+import mdtraj as md
+from simtk import unit
 
 n_samples = 10000
 thinning = 1000
@@ -21,4 +22,6 @@ if __name__ == '__main__':
     vacuum_sim, vacuum_traj = get_vacuum_samples(top, sys, pos,
                                                  n_samples=n_samples, thinning=thinning)
 
+    xyz = np.array([snapshot / unit.nanometer for snapshot in vacuum_traj])
+    vacuum_traj = md.Trajectory(xyz, md.Topology().from_openmm(top))
     vacuum_traj.save_hdf5('vacuum_samples_{}.h5')
