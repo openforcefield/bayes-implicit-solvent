@@ -35,7 +35,7 @@ from openmmtools.integrators import BAOABIntegrator
 
 from openmmtools.constants import kB
 
-temperature = 298 * unit.kelvin
+temperature = 298.15 * unit.kelvin
 stepsize = 1.0 * unit.femtosecond
 collision_rate = 1.0 / unit.picosecond
 beta = 1.0 / (kB * temperature)
