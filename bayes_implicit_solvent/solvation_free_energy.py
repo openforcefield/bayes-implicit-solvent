@@ -131,6 +131,7 @@ def create_implicit_sim(topology, system):
     implicit_sim = app.Simulation(topology,
                                   new_system,
                                   mm.LangevinIntegrator(temperature,  # note: expected to be unused
+                                                        collision_rate,
                                                         stepsize),  # note: expected to be unused
                                   platform=mm.Platform.getPlatformByName('Reference')
                                   )
