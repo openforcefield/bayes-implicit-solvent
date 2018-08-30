@@ -1,5 +1,6 @@
 import numpy as np
 from openeye import oechem
+from bayes_implicit_solvent.utils import smarts_to_subsearch
 
 
 class GBTyper():
@@ -11,15 +12,8 @@ class GBTyper():
         smarts_list : list of SMARTS strings
         """
         self.smarts_list = smarts_list
-        self.subsearches = list(map(self.smarts_to_subsearch, self.smarts_list))
+        self.subsearches = list(map(smarts_to_subsearch, self.smarts_list))
         self.n_types = len(self.smarts_list)
-
-    def smarts_to_subsearch(self, smarts):
-        """Creates an oechem.OESubsearch object from a SMARTS pattern"""
-        qmol = oechem.OEQMol()
-        oechem.OEParseSmarts(qmol, smarts)
-        subsearch = oechem.OESubSearch(qmol)
-        return subsearch
 
     def get_matches(self, oemol):
         """Get a binary matrix of which atoms are hit by which smarts

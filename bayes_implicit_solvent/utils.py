@@ -37,3 +37,10 @@ def apply_radii_to_GB_force(radii, gb_force):
 
 def mdtraj_to_list_of_unitted_snapshots(traj):
     return [snapshot * unit.nanometer for snapshot in traj.xyz]
+
+def smarts_to_subsearch(smarts):
+    """Creates an oechem.OESubsearch object from a SMARTS pattern"""
+    qmol = oechem.OEQMol()
+    oechem.OEParseSmarts(qmol, smarts)
+    subsearch = oechem.OESubSearch(qmol)
+    return subsearch
