@@ -29,6 +29,8 @@ class RadiusInheritanceProposal(Proposal):
         raise(NotImplementedError())
 
 
+##### Birth-death #####
+
 class AddOrDeletePrimitiveAtEndOfList(Proposal):
     def __init__(self, primitives):
         """Sample a SMARTS pattern uniformly from a list of primitives,
@@ -81,12 +83,87 @@ class AddOrDeletePrimitiveAtEndOfList(Proposal):
 
 class AddOrDeletePrimitiveAtRandomPositionInList(Proposal):
     # selects a position in the list uniformly at random, excluding the beginning of the list, and adds a new primitive there with a
-    def __init__(self, sample_radius):
-        raise(NotImplementedError())
+    def __init__(self, primitives):
+        """Sample a SMARTS pattern uniformly from a list of primitives,
+        and insert a new type with this SMARTS pattern
+        and the radius of the one immediately preceding it """
+        self.primitives = primitives
+        self.n_primitives = len(primitives)
+
+    def sample_proposal(self, initial_model):
+
+        if initial_model.typing_scheme.smarts_list[-1] not in self.primitives:
+            raise (RuntimeError(
+                "Couldn't apply this move because the last element of initial_model.smarts_list wasn't a primitive. Ratio of forward and reverse proposal probabilities not finite..."))
+
+        default_prob_add = 0.5  # default
+        prob_reverse_delete = 1.0 - default_prob_add
+
+        if len(initial_model.typing_scheme.smarts_list) == 1:
+            prob_add = 1.0
+        else:
+            prob_add = default_prob_add
+
+        # TODO: Double-check this logic for length-1 lists...
+
+        add = np.random.rand() < prob_add
+        ind = np.random.randint(len(initial_model.radii))
+
+        if add:  # propose an addition
+            new_primitive = self.primitives[np.random.randint(self.n_primitives)]
+
+            new_radii = list(initial_model.radii)
+            new_radii.insert(ind, new_radii[ind])
+            new_radii = np.array(new_radii)
+
+            new_smarts_list = list(initial_model.typing_scheme.smarts_list)
+            new_smarts_list.insert(ind, new_primitive)
+
+            new_typing_scheme = GBTyper(new_smarts_list)
+            new_gb_model = GBModel(new_typing_scheme, new_radii)
+
+            log_p_forward = np.log(prob_add / (len(self.primitives) * len(initial_model.radii)))
+            log_p_reverse = np.log(prob_reverse_delete / (len(self.primitives) * len(new_radii)))
+
+        else:  # proposing a deletion
+
+            new_radii = list(initial_model.radii)
+            _ = new_radii.pop(ind)
+            new_radii = np.array(new_radii)
+
+            new_smarts_list = list(initial_model.typing_scheme.smarts_list)
+            _ = new_smarts_list.pop(ind)
+
+            new_typing_scheme = GBTyper(new_smarts_list)
+            new_gb_model = GBModel(new_typing_scheme, new_radii)
+
+            log_p_forward = np.log(prob_reverse_delete / (len(self.primitives) * len(initial_model.radii)))
+            log_p_reverse = np.log((1 - prob_reverse_delete) / (len(self.primitives) * len(new_radii)))
+
+        log_p_forward_over_reverse = log_p_forward - log_p_reverse
+
+        return {'proposal': new_gb_model, 'log_p_forward_over_reverse': log_p_forward_over_reverse}
+
 
 class AddOrDeleteElaboration(Proposal):
-    # selects a position in the list uniformly at random, and makes a "child" type that
+    # selects a position in the list uniformly at random, and makes a "child" type that decorates / elaborates on the parent type
 
     def __init__(self):
         raise(NotImplementedError())
+
+###### Merge-split ######
+class MergeSplitDisjunction(Proposal):
+    # merge: select two (potentially nonunique) positions in the list randomly,
+    # and create a new smarts pattern that contains "ORs" them together
+
+    def __init__(self):
+        raise(NotImplementedError())
+
+class MergeSplitConjunctionjunction(Proposal):
+    # merge: select two (potentially nonunique) positions in the list randomly,
+    # and create a new smarts pattern that contains "ANDs" them together
+
+    def __init__(self):
+        raise(NotImplementedError())
+
 
