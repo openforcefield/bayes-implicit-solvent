@@ -1,6 +1,7 @@
 import numpy as np
 import pymbar
 from pkg_resources import resource_filename
+from bayes_implicit_solvent.utils import apply_radii_to_GB_force
 
 from bayes_implicit_solvent.utils import get_gbsa_force, get_nb_force
 
@@ -191,18 +192,11 @@ def predict_solvation_free_energy(implicit_sim, radii, vacuum_traj):
         closed-form estimate of uncertainty (stddev) of the one-sided EXP estimate
         # TODO: detect when this is likely an underestimate of the uncertainty, and return bootstrapped estimate instead...
     """
-    gbsa = get_gbsa_force(implicit_sim.context.getSystem())
+    gb_force = get_gbsa_force(implicit_sim.context.getSystem())
     # TODO: Check occasionally that the force group partition matches expectation?
 
-    for i in range(len(radii)):
-        charge = gbsa.getParticleParameters(i)[0]
-        gbsa.setParticleParameters(index=i,
-                                   charge=charge,
-                                   radius=radii[i],
-                                   scalingFactor=1.0,
-                                   )
-
-    gbsa.updateParametersInContext(implicit_sim.context)
+    apply_radii_to_GB_force(radii, gb_force)
+    gb_force.updateParametersInContext(implicit_sim.context)
     u_diffs = get_implicit_u_diffs(implicit_sim, vacuum_traj)
     mean, uncertainty = pymbar.EXP(u_diffs)
 

@@ -43,6 +43,7 @@ ff = ForceField(resource_filename('bayes_implicit_solvent', 'data/smirnoff99Fros
 def generate_oemol(smiles):
     """Add hydrogens, assign charges, generate conformers, and return molecule"""
     mol = oechem.OEMol()
+    oechem.OEAssignAromaticFlags(mol, oechem.OEAroModelOpenEye)
     chargeEngine = oequacpac.OEAM1BCCCharges()
     oechem.OEParseSmiles(mol, smiles)
     oechem.OEAddExplicitHydrogens(mol)
@@ -69,21 +70,21 @@ def generate_mol_top_sys_pos(smiles):
 
     return mol, topology, system, positions
 
-
 # sort in order of decreasing SMILES-string length, and remove duplicates
 sorted_smiles = sorted(list(set(smiles_list)), key=len)[::-1]
 
-mol_top_sys_pos_list = []
+if __name__ == '__main__':
+    mol_top_sys_pos_list = []
 
-for smiles in tqdm(sorted_smiles):
-    mol_top_sys_pos_list.append(tuple(generate_mol_top_sys_pos(smiles)))
+    for smiles in tqdm(sorted_smiles):
+        mol_top_sys_pos_list.append(tuple(generate_mol_top_sys_pos(smiles)))
 
-from pickle import dump
+    from pickle import dump
 
-# save list of (mol, topology, system, positions) tuples, in the order of the sorted smiles list
-with open(resource_filename('bayes_implicit_solvent', 'data/mol_top_sys_pos.pkl'), 'wb') as f:
-    dump(mol_top_sys_pos_list, f)
+    # save list of (mol, topology, system, positions) tuples, in the order of the sorted smiles list
+    with open(resource_filename('bayes_implicit_solvent', 'data/mol_top_sys_pos.pkl'), 'wb') as f:
+        dump(mol_top_sys_pos_list, f)
 
-# save the sorted smiles list
-with open(resource_filename('bayes_implicit_solvent', 'data/sorted_smiles.pkl'), 'wb') as f:
-    dump(sorted_smiles, f)
+    # save the sorted smiles list
+    with open(resource_filename('bayes_implicit_solvent', 'data/sorted_smiles.pkl'), 'wb') as f:
+        dump(sorted_smiles, f)

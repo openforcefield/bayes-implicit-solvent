@@ -6,7 +6,7 @@ from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_
 
 
 class Molecule():
-    def __init__(self, smiles, verbose=False):
+    def __init__(self, smiles, verbose=False, vacuum_samples=None):
         """Create an object that supports prediction of solvation free energy given radii
 
         Parameters
@@ -16,6 +16,8 @@ class Molecule():
 
         verbose : boolean
             whether to print updates
+
+        vacuum_samples : list of unit'd snapshots
 
         Attributes
         ----------
@@ -76,12 +78,16 @@ class Molecule():
         self.atom_names = [a.name for a in self.top.atoms()]
         self.n_atoms = len(self.pos)
 
-        if verbose: print('collecting vacuum samples...')
-        # TODO: maybe expose these parameter, if we need this not to be hard-coded...
-        self._n_samples = 50
-        self._thinning = 50000
-        self.vacuum_sim, self.vacuum_traj = get_vacuum_samples(self.top, self.sys, self.pos, n_samples=self._n_samples,
-                                                               thinning=self._thinning)
+        if type(vacuum_samples) == type(None):
+            if verbose: print('collecting vacuum samples...')
+            # TODO: maybe expose these parameters, if we need this not to be hard-coded...
+            self._n_samples = 50
+            self._thinning = 50000
+            self.vacuum_sim, self.vacuum_traj = get_vacuum_samples(self.top, self.sys, self.pos, n_samples=self._n_samples,
+                                                                   thinning=self._thinning)
+        else:
+            #self.vacuum_sim, _ = get_vacuum_samples(self.top, self.sys, self.pos, n_samples=2, thinning=2)
+            self.vacuum_traj = vacuum_samples
 
         # both in reduced units
         self.experimental_value = beta * (float(db[mol_index_in_freesolv][3]) * unit.kilocalorie_per_mole)
@@ -121,8 +127,8 @@ class Molecule():
         return - (simulation_mean - mu) ** 2 / sigma2
 
     def log_prior(self, radii):
-        """Un-normalized log-prior: uniform in [0.01, 1.0]^n_atoms"""
-        if (np.min(radii) <= 0.01) or (np.max(radii) >= 1.0):
+        """Un-normalized log-prior: uniform in [0.01, 10.0]^n_atoms"""
+        if (np.min(radii) <= 0.01) or (np.max(radii) >= 10.0):
             return - np.inf
         else:
             return 0
