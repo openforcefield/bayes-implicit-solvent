@@ -12,15 +12,16 @@ theta_0 = GBModel(typing_scheme=GBTyper(['*']), radii=0.1 * np.ones(1))
 
 # initial subset
 np.random.seed(0)
+size_of_subset = 20
 
-ind_subset = np.random.randint(0, len(smiles_list), 20)
+ind_subset = np.random.randint(0, len(smiles_list), size_of_subset)
 smiles_subset = [smiles_list[i] for i in ind_subset]
 
 from pkg_resources import resource_filename
 from bayes_implicit_solvent.posterior_sampling import Molecule
 import mdtraj as md
 
-n_snapshots = 50
+n_snapshots = 10
 
 mols = []
 for (i, smiles) in zip(ind_subset, smiles_subset):
@@ -35,14 +36,18 @@ for (i, smiles) in zip(ind_subset, smiles_subset):
 # okay let's try adding and removing primitive types!
 from tqdm import tqdm
 from bayes_implicit_solvent.smarts import atomic_primitives, atomic_number_dict
-from bayes_implicit_solvent.type_samplers import AddOrDeletePrimitiveAtEndOfList
+from bayes_implicit_solvent.type_samplers import AddOrDeletePrimitiveAtEndOfList, AddOrDeletePrimitiveAtRandomPositionInList
 from bayes_implicit_solvent.samplers import random_walk_mh
 
-# getting error messages that it can't parse most of these smarts strings...
-#cross_model_proposal = AddOrDeletePrimitiveAtEndOfList(list(atomic_primitives.keys()))
+cross_model_proposal = AddOrDeletePrimitiveAtEndOfList(list(atomic_primitives.keys()))
 
-# no errors so far with this instead
-cross_model_proposal = AddOrDeletePrimitiveAtEndOfList(['*'] + list(atomic_number_dict.keys()))
+## no errors so far with this instead
+#cross_model_proposal = AddOrDeletePrimitiveAtEndOfList(['*'] + list(atomic_number_dict.keys()))
+
+
+# okay now let's try adding or deleting at random positions within the list
+#cross_model_proposal = AddOrDeletePrimitiveAtRandomPositionInList(['*'] + list(atomic_number_dict.keys()))
+#cross_model_proposal = AddOrDeletePrimitiveAtRandomPositionInList(list(atomic_primitives.keys()))
 
 
 def log_prob(gb_model):
@@ -93,7 +98,7 @@ for i in range(1000):
 
     # sample continuous parameters within each model
     within_model_traj, within_model_log_p, within_model_acceptance_fraction = \
-        random_walk_mh(initial_radii, within_model_log_prob, n_steps=10, stepsize=0.01)
+        random_walk_mh(initial_radii, within_model_log_prob, n_steps=10, stepsize=0.01**min(1, int(len(initial_radii))))
 
     within_model_trajs.append(within_model_traj)
     within_model_log_ps.append(within_model_log_p)
