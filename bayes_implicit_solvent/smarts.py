@@ -4,7 +4,7 @@ for i in [1, 6, 7, 8, 9, 15, 16, 17, 35, 53]:
 
 
 def construct_atomic_primitives_dict(
-        #max_degree=4,  # maximum from FreeSolv
+        max_degree=4,  # maximum from FreeSolv
         max_attached_hydrogens=4,  # maximum from FreeSolv
         max_implicit_hydrogens=0,  # maximum from FreeSolv
         max_ring_membership=4,
@@ -28,52 +28,51 @@ def construct_atomic_primitives_dict(
     # initialize dictionary
     atomic_primitives = {
         '*': 'wildcard',
-        'a': 'aromatic',
-        'A': 'aliphatic',
+        '[a]': 'aromatic',
+        '[A]': 'aliphatic',
     }
 
-    # OpenEye can't parse this...
     ## add degree properties
-    #for i in range(1, max_degree + 1):
-    #    atomic_primitives['D{}'.format(i)] = 'degree = {} ({} explicit connections)'.format(i, i)
+    for i in range(1, max_degree + 1):
+        atomic_primitives['[D{}]'.format(i)] = 'degree = {} ({} explicit connections)'.format(i, i)
 
     # add attached hydrogen properties
     for i in range(0, max_attached_hydrogens + 1):
-        atomic_primitives['H{}'.format(i)] = 'total-H-count = {} ({} attached hydrogens)'.format(i, i)
+        atomic_primitives['[H{}]'.format(i)] = 'total-H-count = {} ({} attached hydrogens)'.format(i, i)
 
     # add implicit hydrogen properties
     for i in range(0, max_implicit_hydrogens + 1):
-        atomic_primitives['h{}'.format(i)] = 'implicit-H-count = {} ({} implicit hydrogens)'.format(i, i)
+        atomic_primitives['[h{}]'.format(i)] = 'implicit-H-count = {} ({} implicit hydrogens)'.format(i, i)
 
     # add ring membership properties
     for i in range(0, max_ring_membership + 1):
-        atomic_primitives['R{}'.format(i)] = 'ring membership = {} (in {} SSSR rings)'.format(i, i)
+        atomic_primitives['[R{}]'.format(i)] = 'ring membership = {} (in {} SSSR rings)'.format(i, i)
 
     # add ring size properties
     for i in range(0, max_ring_size + 1):
-        atomic_primitives['r{}'.format(i)] = 'ring size = {} (in smallest SSSR ring of size {})'.format(i, i)
+        atomic_primitives['[r{}]'.format(i)] = 'ring size = {} (in smallest SSSR ring of size {})'.format(i, i)
 
     # add valence properties
     for i in range(1, max_valence + 1):
-        atomic_primitives['v{}'.format(i)] = 'valence = {} (total bond order {})'.format(i, i)
+        atomic_primitives['[v{}]'.format(i)] = 'valence = {} (total bond order {})'.format(i, i)
 
     # add connectivity properties
     for i in range(1, max_connectivity + 1):
-        atomic_primitives['X{}'.format(i)] = 'connectivity = {} ({} total connections)'.format(i, i)
+        atomic_primitives['[X{}]'.format(i)] = 'connectivity = {} ({} total connections)'.format(i, i)
 
     # add ring connectivity properties
     for i in range(0, max_ring_connectivity + 1):
-        atomic_primitives['x{}'.format(i)] = 'ring connectivity = {} ({} total ring connections)'.format(i, i)
+        atomic_primitives['[x{}]'.format(i)] = 'ring connectivity = {} ({} total ring connections)'.format(i, i)
 
     # add charge properties
     for i in range(min_negative_charge, 0):
-        atomic_primitives[str(i)] = 'negative charge = {} ({} charge)'.format(i, i)
+        atomic_primitives['[{}]'.format(i)] = 'negative charge = {} ({} charge)'.format(i, i)
     for i in range(1, max_positive_charge + 1):
-        atomic_primitives['+{}'.format(i)] = 'positive charge = {} (+{} formal charge)'.format(i, i)
+        atomic_primitives['[+{}]'.format(i)] = 'positive charge = {} (+{} formal charge)'.format(i, i)
 
     # add atomic number properties
     for i in all_atomic_nums:
-        atomic_primitives['#{}'.format(i)] = 'atomic number = {}'.format(i)
+        atomic_primitives['[#{}]'.format(i)] = 'atomic number = {}'.format(i)
 
     return atomic_primitives
 
