@@ -44,3 +44,7 @@ def smarts_to_subsearch(smarts):
     oechem.OEParseSmarts(qmol, smarts)
     subsearch = oechem.OESubSearch(qmol)
     return subsearch
+
+def remove_top_right_spines(ax):
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)

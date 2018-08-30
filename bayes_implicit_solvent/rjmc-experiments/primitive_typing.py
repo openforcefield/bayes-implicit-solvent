@@ -106,3 +106,18 @@ for i in range(1000):
 
     theta_traj.append(GBModel(typing_scheme=typing_scheme, radii=within_model_traj[-1]))
     log_ps.append(within_model_log_p[-1])
+
+# save results
+experiment_number = 1
+
+np.save('experiment_{}_log_ps.npy'.format(experiment_number), log_ps)
+radii = [theta.radii for theta in theta_traj]
+smarts_lists = [theta.typing_scheme.smarts_list for theta in theta_traj]
+
+from pickle import dump
+with open('experiment_{}_radii_samples.pkl'.format(experiment_number), 'wb') as f:
+    dump(radii, f)
+
+
+with open('experiment_{}_smarts_lists_samples.pkl'.format(experiment_number), 'wb') as f:
+    dump(smarts_lists, f)
