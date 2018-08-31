@@ -2,10 +2,12 @@ from bayes_implicit_solvent.utils import remove_top_right_spines
 
 from pickle import load
 
-experiment_number = 1
+experiment_number = 3
 
 with open('experiment_{}_radii_samples.pkl'.format(experiment_number), 'rb') as f:
     radii_samples = load(f)
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -16,7 +18,7 @@ n_types_trace = [len(r) for r in radii_samples]
 max_n_dimensions = max(n_types_trace)
 print(max_n_dimensions)
 
-fig = plt.figure(figsize=(12,4))
+fig = plt.figure(figsize=(4,8))
 
 
 traces = []

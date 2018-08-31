@@ -127,15 +127,24 @@ class Molecule():
         return - (simulation_mean - mu) ** 2 / sigma2
 
     def log_prior(self, radii):
-        """Un-normalized log-prior: uniform in [0.01, 10.0]^n_atoms"""
-        if (np.min(radii) <= 0.01) or (np.max(radii) >= 10.0):
+        """Un-normalized log-prior: uniform in [0.01, 1.0]^n_atoms"""
+        min_r, max_r = 0.01, 1.0
+        dim = len(radii)
+        if (np.min(radii) < min_r) or (np.max(radii) > max_r):
             return - np.inf
         else:
-            return 0
+            return dim * np.log(0.5) # uniform prior, unnormalized
+            #return dim * np.log(max_r - min_r)  # uniform prior, normalized
+        # i'm not sure I implemented this "flat prior" correctly -- will give different behavior if (max_r - min_r) > 0, <0, or =0...
 
     def log_prob(self, radii):
         """Un-normalized log-probability : log-prior + log-likelihood"""
-        return self.log_prior(radii) + self.log_likelihood(radii)
+        prior = self.log_prior(radii)
+        if prior > -np.inf:
+            ll = self.log_likelihood(radii)
+            return prior + ll
+        else:
+            return prior
 
 
 if __name__ == '__main__':

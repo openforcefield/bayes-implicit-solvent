@@ -12,10 +12,15 @@ theta_0 = GBModel(typing_scheme=GBTyper(['*']), radii=0.1 * np.ones(1))
 
 # initial subset
 np.random.seed(0)
-size_of_subset = 20
+size_of_subset = 300
 
-ind_subset = np.random.randint(0, len(smiles_list), size_of_subset)
+ind_subset = np.arange(len(smiles_list))
+np.random.shuffle(ind_subset)
+ind_subset = ind_subset[:size_of_subset]
+
 smiles_subset = [smiles_list[i] for i in ind_subset]
+
+print('"training" on ', smiles_subset)
 
 from pkg_resources import resource_filename
 from bayes_implicit_solvent.posterior_sampling import Molecule
@@ -34,10 +39,9 @@ for (i, smiles) in zip(ind_subset, smiles_subset):
 
 
 # okay let's try adding and removing primitive types!
-from tqdm import tqdm
 from bayes_implicit_solvent.smarts import atomic_primitives, atomic_number_dict
 from bayes_implicit_solvent.type_samplers import AddOrDeletePrimitiveAtEndOfList, AddOrDeletePrimitiveAtRandomPositionInList
-from bayes_implicit_solvent.samplers import random_walk_mh
+from bayes_implicit_solvent.samplers import random_walk_mh, sparse_mh
 
 cross_model_proposal = AddOrDeletePrimitiveAtEndOfList(list(atomic_primitives.keys()))
 
@@ -55,10 +59,15 @@ def log_prob(gb_model):
     radii = gb_model.radii
     print('radii: ', radii)
     print('types[0]: ', types[0])
-    atomic_radii = [np.array([radii[t] for t in types[i]]) for i in range(len(mols))]
 
-    return sum([mol.log_prob(radii) for (mol, radii) in zip(mols, atomic_radii)])
-
+    log_priors = [mol.log_prior(radii) for mol in mols]
+    if min(log_priors) > - np.inf:
+        atomic_radii = [np.array([radii[t] for t in types[i]]) for i in range(len(mols))]
+        # in cases where some of the parameters are unused, they can become negative / fall outside the range of the prior...
+        log_prob = sum([mol.log_prob(radii) for (mol, radii) in zip(mols, atomic_radii)])
+        return log_prob
+    else:
+        return - np.inf
 
 theta_traj = [theta_0]
 log_ps = [log_prob(theta_0)]
@@ -68,7 +77,9 @@ within_model_trajs = []
 within_model_log_ps = []
 within_model_acceptance_fractions = []
 
-for i in range(1000):
+n_iterations = 1000
+for i in range(n_iterations):
+    print('iteration', i, 'of', n_iterations, '!')
     proposal_dict = cross_model_proposal.sample_proposal(theta_traj[-1])
     proposal_gb_model = proposal_dict['proposal']
 
@@ -93,12 +104,19 @@ for i in range(1000):
 
     def within_model_log_prob(radii):
         """"""
-        atomic_radii = [np.array([radii[t] for t in types[i]]) for i in range(len(mols))]
-        return sum([mol.log_prob(radii) for (mol, radii) in zip(mols, atomic_radii)])
+        log_priors = [mol.log_prior(radii) for mol in mols]
+        if min(log_priors) > - np.inf:
+            # in cases where some of the parameters are unused, they can become negative / fall outside the range of the prior...
+
+            atomic_radii = [np.array([radii[t] for t in types[i]]) for i in range(len(mols))]
+            log_prob = sum([mol.log_prob(radii) for (mol, radii) in zip(mols, atomic_radii)])
+            return log_prob
+        else:
+            return - np.inf
 
     # sample continuous parameters within each model
     within_model_traj, within_model_log_p, within_model_acceptance_fraction = \
-        random_walk_mh(initial_radii, within_model_log_prob, n_steps=10, stepsize=0.01**min(1, int(len(initial_radii))))
+        sparse_mh(initial_radii, within_model_log_prob, n_steps=10, stepsize=0.01, dim_to_perturb=2)
 
     within_model_trajs.append(within_model_traj)
     within_model_log_ps.append(within_model_log_p)
@@ -108,7 +126,7 @@ for i in range(1000):
     log_ps.append(within_model_log_p[-1])
 
 # save results
-experiment_number = 1
+experiment_number = 4
 
 np.save('experiment_{}_log_ps.npy'.format(experiment_number), log_ps)
 radii = [theta.radii for theta in theta_traj]
@@ -118,6 +136,8 @@ from pickle import dump
 with open('experiment_{}_radii_samples.pkl'.format(experiment_number), 'wb') as f:
     dump(radii, f)
 
-
 with open('experiment_{}_smarts_lists_samples.pkl'.format(experiment_number), 'wb') as f:
     dump(smarts_lists, f)
+
+with open('experiment_{}_within_model_trajs.pkl'.format(experiment_number), 'wb') as f:
+    dump(within_model_trajs, f)
