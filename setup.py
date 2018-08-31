@@ -27,6 +27,7 @@ setup(
                                              "data/FreeSolv-0.51/*.json",
                                              "data/*.pkl",
                                              "data/*.offxml",
+                                             "data/*.xml"
                                              ]
                   },
 
