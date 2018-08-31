@@ -2,16 +2,16 @@ from bayes_implicit_solvent.utils import remove_top_right_spines
 
 from pickle import load
 
-experiment_number = 3
+experiment_number = 4
 
-with open('experiment_{}_radii_samples.pkl'.format(experiment_number), 'rb') as f:
+with open('results/experiment_{}_radii_samples.pkl'.format(experiment_number), 'rb') as f:
     radii_samples = load(f)
 
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-log_ps = np.load('experiment_{}_log_ps.npy'.format(experiment_number))
+log_ps = np.load('results/experiment_{}_log_ps.npy'.format(experiment_number))
 
 n_types_trace = [len(r) for r in radii_samples]
 
@@ -51,12 +51,12 @@ remove_top_right_spines(ax)
 ax = plt.subplot(3,1,3)
 plt.plot(log_ps)
 plt.xlabel('iteration')
-plt.ylim(-1500, max(log_ps) + 20)
+plt.ylim(log_ps[10], max(log_ps) + 0.05 * (max(log_ps) - log_ps[10]))
 plt.ylabel('log posterior')
 remove_top_right_spines(ax)
 
 plt.tight_layout()
 
-plt.savefig('experiment_{}_branching.png'.format(experiment_number),
+plt.savefig('figures/experiment_{}_branching.png'.format(experiment_number),
             bbox_inches='tight', dpi=300)
 plt.close()
