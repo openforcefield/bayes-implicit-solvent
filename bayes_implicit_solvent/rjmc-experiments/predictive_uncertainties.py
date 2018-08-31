@@ -16,8 +16,9 @@ with open('experiment_{}_smarts_lists_samples.pkl'.format(experiment_number), 'r
 
 gb_models = [GBModel(GBTyper(smarts_lists_samples[i]), radii_samples[i]) for i in range(len(radii_samples))]
 
-
+# TODO: Do this for the whole FreeSolv set, look at "generalization" to molecules not in training set (experiment 4 is on a larger training set of 300 molecules...)
 from bayes_implicit_solvent.solvation_free_energy import smiles_list, db
+np.random.seed(100)
 ind_test = np.random.randint(len(smiles_list))
 smiles_test = smiles_list[ind_test]
 
@@ -31,7 +32,7 @@ from pkg_resources import resource_filename
 from bayes_implicit_solvent.posterior_sampling import Molecule
 import mdtraj as md
 
-n_snapshots = 10
+n_snapshots = 100
 from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
 
 path_to_samples = resource_filename(
@@ -53,6 +54,7 @@ for gb_model in tqdm(gb_models):
 
 burn_in = 100
 
+ax = plt.subplot(1, 2, 1)
 plt.errorbar(np.arange(len(means))[burn_in:], means[burn_in:], uncs[burn_in:])
 plt.hlines(predict_mol.experimental_value, burn_in, len(means), linestyles='--')
 plt.fill_between(np.arange(len(means))[burn_in:],
@@ -61,6 +63,28 @@ plt.fill_between(np.arange(len(means))[burn_in:],
                  alpha=0.1)
 plt.xlabel('RJMC iteration')
 plt.ylabel('hydration free energy (in kT)')
-plt.title(name_test)
-plt.savefig('predicted_delta_G.png', dpi=300)
+plt.title(name_test + '\ntrace of predictions during sampling')
+remove_top_right_spines(ax)
+
+ax = plt.subplot(1, 2, 2)
+hist = plt.hist(means[burn_in:], normed=True, bins=30, alpha=0.5)
+heights = hist[0]
+plt.vlines(predict_mol.experimental_value, min(heights), max(heights), linestyles='--')
+plt.fill_betweenx([min(heights), max(heights)],
+                 [predict_mol.experimental_value - 1.92 * predict_mol.experimental_uncertainty] * 2,
+                 [predict_mol.experimental_value + 1.92 * predict_mol.experimental_uncertainty] * 2,
+                 alpha=0.1)
+
+plt.xlabel('hydration free energy (in kT)')
+plt.ylabel('probability density')
+plt.title(name_test + '\nmarginal predictive distribution')
+plt.yticks([])
+
+remove_top_right_spines(ax)
+
+
+plt.tight_layout()
+plt.savefig('predicted_delta_G_trace_and_distribution.png', dpi=300, bbox_inches='tight')
 plt.close()
+
+# TODO: Replace histogram with nice smooth mixture-of-Gaussians curve...
