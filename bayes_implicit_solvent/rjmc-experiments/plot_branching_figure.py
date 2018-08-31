@@ -2,7 +2,7 @@ from bayes_implicit_solvent.utils import remove_top_right_spines
 
 from pickle import load
 
-experiment_number = 4
+experiment_number = 5
 
 with open('results/experiment_{}_radii_samples.pkl'.format(experiment_number), 'rb') as f:
     radii_samples = load(f)
