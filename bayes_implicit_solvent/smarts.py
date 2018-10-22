@@ -87,3 +87,11 @@ binary_logical_operators = {
     ',': 'or',
     ';': 'and (low precedence)',
 }
+
+decorators = {
+    '~#6': 'bonded to carbon',
+    '~#7': 'bonded to nitrogen',
+    '~#8': 'bonded to oxygen',
+    '[a]': 'aromatic',
+    '[A]': 'aliphatic',
+}
