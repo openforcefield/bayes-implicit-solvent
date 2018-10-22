@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import t as student_t
 from simtk import unit
 
 from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_energy, \
@@ -83,10 +84,11 @@ class Molecule():
             # TODO: maybe expose these parameters, if we need this not to be hard-coded...
             self._n_samples = 50
             self._thinning = 50000
-            self.vacuum_sim, self.vacuum_traj = get_vacuum_samples(self.top, self.sys, self.pos, n_samples=self._n_samples,
+            self.vacuum_sim, self.vacuum_traj = get_vacuum_samples(self.top, self.sys, self.pos,
+                                                                   n_samples=self._n_samples,
                                                                    thinning=self._thinning)
         else:
-            #self.vacuum_sim, _ = get_vacuum_samples(self.top, self.sys, self.pos, n_samples=2, thinning=2)
+            # self.vacuum_sim, _ = get_vacuum_samples(self.top, self.sys, self.pos, n_samples=2, thinning=2)
             self.vacuum_traj = vacuum_samples
 
         # both in reduced units
@@ -114,10 +116,18 @@ class Molecule():
         assert (len(radii) == self.n_atoms)
         return predict_solvation_free_energy(self.implicit_sim, radii, self.vacuum_traj)
 
-    def log_likelihood(self, radii):
-        """Un-normalized log-likelihood:
+    def gaussian_log_likelihood(self, radii):
+        """Un-normalized log-likelihood using Gaussian located at experimentally measured value, with
+        scale set by the estimated experimental error.
+
+        This will be sensitive to the stated experimental uncertainty, which we are somewhat skeptical of,
+        since for many (most?) entries in FreeSolv this just a default value.
+
+
         N(mean_sim | mu = mean_expt,
                      sigma^2 = sigma_expt * max(sigma_expt, sigma_sim)
+
+
         """
         simulation_mean, simulation_uncertainty = self.predict_solvation_free_energy(radii)
 
@@ -126,6 +136,20 @@ class Molecule():
 
         return - (simulation_mean - mu) ** 2 / sigma2
 
+    def log_likelihood(self, radii):
+        """To be more robust to inaccurate statement of `experimental_uncertainty`, favor a Student-t likelihood
+        over a Gaussian likelihood. This also corresponds to using a nuisance parameter for the experimental uncertainty (with
+        an inverse-Gamma prior?) and marginalizing it out.
+
+        TODO: Gelman reference
+        """
+        simulation_mean, simulation_uncertainty = self.predict_solvation_free_energy(radii)
+
+        mu = self.experimental_value
+        sigma2 = self.experimental_uncertainty * max([self.experimental_uncertainty, simulation_uncertainty])
+
+        return student_t.logpdf(simulation_mean, loc=mu, scale=sigma2, df=2)
+
     def log_prior(self, radii):
         """Un-normalized log-prior: uniform in [0.01, 1.0]^n_atoms"""
         min_r, max_r = 0.01, 1.0
@@ -133,8 +157,8 @@ class Molecule():
         if (np.min(radii) < min_r) or (np.max(radii) > max_r):
             return - np.inf
         else:
-            return dim * np.log(0.5) # uniform prior, unnormalized
-            #return dim * np.log(max_r - min_r)  # uniform prior, normalized
+            return dim * np.log(0.5)  # uniform prior, unnormalized
+            # return dim * np.log(max_r - min_r)  # uniform prior, normalized
         # i'm not sure I implemented this "flat prior" correctly -- will give different behavior if (max_r - min_r) > 0, <0, or =0...
 
     def log_prob(self, radii):
@@ -150,16 +174,18 @@ class Molecule():
 if __name__ == '__main__':
     from bayes_implicit_solvent.samplers import random_walk_mh
 
+    np.random.seed(0)
+
     smiles = 'CCBr'
     mol = Molecule(smiles)
     radii0 = np.ones(len(mol.pos))
 
     traj, log_probs, acceptance_fraction = random_walk_mh(radii0, mol.log_prob,
-                                                          n_steps=10000, stepsize=0.0025)
+                                                          n_steps=10000, stepsize=0.05)
     import os.path
 
-    data_path = '../data/'
-    np.save(os.path.join(data_path, 'radii_samples_.npy'.format(smiles)), traj)
+    data_path = 'data/'
+    np.save(os.path.join(data_path, 'radii_samples_{}.npy'.format(smiles)), traj)
 
     print(acceptance_fraction)
     print('atom_names: ', mol.atom_names)
