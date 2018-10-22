@@ -12,7 +12,7 @@ theta_0 = GBModel(typing_scheme=FlatGBTyper(['*']), radii=0.1 * np.ones(1))
 
 # initial subset
 np.random.seed(0)
-size_of_subset = 100
+size_of_subset = 50
 
 ind_subset = np.arange(len(smiles_list))
 np.random.shuffle(ind_subset)
@@ -40,14 +40,10 @@ for (i, smiles) in zip(ind_subset, smiles_subset):
 
 # okay let's try adding and removing primitive types!
 from bayes_implicit_solvent.smarts import atomic_primitives, atomic_number_dict
-from bayes_implicit_solvent.type_samplers import AddOrDeletePrimitiveAtRandomPositionInList, SwapTwoPatterns, MultiProposal
+from bayes_implicit_solvent.type_samplers import AddOrDeletePrimitiveAtEndOfList, AddOrDeletePrimitiveAtRandomPositionInList, MergeSplitConjunction
 from bayes_implicit_solvent.samplers import random_walk_mh, sparse_mh
 
-birth_death = AddOrDeletePrimitiveAtRandomPositionInList(list(atomic_primitives.keys()))
-swapping = SwapTwoPatterns()
-
-cross_model_proposal = MultiProposal([birth_death, swapping])
-
+cross_model_proposal = AddOrDeletePrimitiveAtEndOfList(list(atomic_primitives.keys()))
 
 def log_prob(gb_model):
     types = [gb_model.typing_scheme.get_gb_types(mol.mol) for mol in mols]
@@ -92,7 +88,7 @@ for i in range(n_iterations):
         theta_traj.append(theta_traj[-1])
         log_ps.append(log_ps[-1])
 
-    # TODO: Wrap this into Multiproposal
+    # TODO: Replace this with caching in typing_scheme object?
     typing_scheme = theta_traj[-1].typing_scheme
     initial_radii = theta_traj[-1].radii
     types = [typing_scheme.get_gb_types(mol.mol) for mol in mols]
@@ -121,7 +117,7 @@ for i in range(n_iterations):
     log_ps.append(within_model_log_p[-1])
 
 # save results
-experiment_number = 6
+experiment_number = 5
 
 np.save('results/experiment_{}_log_ps.npy'.format(experiment_number), log_ps)
 radii = [theta.radii for theta in theta_traj]

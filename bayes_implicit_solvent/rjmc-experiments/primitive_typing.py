@@ -1,4 +1,4 @@
-from bayes_implicit_solvent.typers import GBTyper
+from bayes_implicit_solvent.typers import FlatGBTyper
 from bayes_implicit_solvent.type_samplers import GBModel
 import numpy as np
 from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
@@ -7,7 +7,7 @@ from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
 from bayes_implicit_solvent.solvation_free_energy import smiles_list
 
 # initial model: treat all atoms identically
-theta_0 = GBModel(typing_scheme=GBTyper(['*']), radii=0.1 * np.ones(1))
+theta_0 = GBModel(typing_scheme=FlatGBTyper(['*']), radii=0.1 * np.ones(1))
 
 
 # initial subset

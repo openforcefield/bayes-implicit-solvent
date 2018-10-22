@@ -1,5 +1,5 @@
 from bayes_implicit_solvent.utils import remove_top_right_spines
-from bayes_implicit_solvent.typers import GBTyper
+from bayes_implicit_solvent.typers import FlatGBTyper
 from bayes_implicit_solvent.type_samplers import GBModel
 
 from pickle import load
@@ -14,7 +14,7 @@ with open('results/experiment_{}_radii_samples.pkl'.format(experiment_number), '
 with open('results/experiment_{}_smarts_lists_samples.pkl'.format(experiment_number), 'rb') as f:
     smarts_lists_samples = load(f)
 
-gb_models = [GBModel(GBTyper(smarts_lists_samples[i]), radii_samples[i]) for i in range(len(radii_samples))]
+gb_models = [GBModel(FlatGBTyper(smarts_lists_samples[i]), radii_samples[i]) for i in range(len(radii_samples))]
 
 # TODO: Do this for the whole FreeSolv set, look at "generalization" to molecules not in training set
 # (experiment 3 is on a small training set of 20 molecules)
