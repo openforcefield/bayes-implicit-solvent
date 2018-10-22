@@ -181,7 +181,7 @@ if __name__ == '__main__':
     radii0 = np.ones(len(mol.pos))
 
     traj, log_probs, acceptance_fraction = random_walk_mh(radii0, mol.log_prob,
-                                                          n_steps=10000, stepsize=0.05)
+                                                          n_steps=100000, stepsize=0.05)
     import os.path
 
     data_path = 'data/'
