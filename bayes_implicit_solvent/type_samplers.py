@@ -1,5 +1,5 @@
 import numpy as np
-from bayes_implicit_solvent.typers import GBTyper
+from bayes_implicit_solvent.typers import FlatGBTyper
 
 class Proposal():
     """abstract class for a proposal distribution:
@@ -19,7 +19,6 @@ GBModel = namedtuple('GBModel', ['typing_scheme', 'radii'])
 class RadiusInheritanceProposal(Proposal):
     # forward proposal samples p(radius_new | radius_old)
     # some options include:
-    # * p(radius_new | radius_old) = elta(radius_new - radius_old)
     # * p(radius_new | radius_old) = prior(radius_new)
     # * p(radius_new | radius_old) = Normal(radius_new | mean=radius_old, sigma=sigma_proposal)
 
@@ -69,7 +68,7 @@ class AddOrDeletePrimitiveAtEndOfList(Proposal):
             new_radii[:-1] = initial_model.radii
             new_radii[-1] = initial_model.radii[-1]
             new_smarts_list = initial_model.typing_scheme.smarts_list + [new_primitive]
-            new_typing_scheme = GBTyper(new_smarts_list)
+            new_typing_scheme = FlatGBTyper(new_smarts_list)
             new_gb_model = GBModel(new_typing_scheme, new_radii)
 
             log_p_forward = np.log(prob_add / n_available_primitives)
@@ -77,7 +76,7 @@ class AddOrDeletePrimitiveAtEndOfList(Proposal):
             log_p_forward_over_reverse = log_p_forward - log_p_reverse
 
         else:  # proposing a deletion
-            new_typing_scheme = GBTyper(initial_model.typing_scheme.smarts_list[:-1])
+            new_typing_scheme = FlatGBTyper(initial_model.typing_scheme.smarts_list[:-1])
             new_radii = initial_model.radii[:-1]
             new_gb_model = GBModel(new_typing_scheme, new_radii)
 
@@ -138,7 +137,7 @@ class AddOrDeletePrimitiveAtRandomPositionInList(Proposal):
             new_smarts_list = list(initial_model.typing_scheme.smarts_list)
             new_smarts_list.insert(insertion_ind, new_primitive)
 
-            new_typing_scheme = GBTyper(new_smarts_list)
+            new_typing_scheme = FlatGBTyper(new_smarts_list)
             new_gb_model = GBModel(new_typing_scheme, new_radii)
 
             log_p_forward = np.log(prob_add / (n_available_primitives * len(initial_model.radii - 1)))
@@ -153,7 +152,7 @@ class AddOrDeletePrimitiveAtRandomPositionInList(Proposal):
             new_smarts_list = list(initial_model.typing_scheme.smarts_list)
             _ = new_smarts_list.pop(ind_to_remove)
 
-            new_typing_scheme = GBTyper(new_smarts_list)
+            new_typing_scheme = FlatGBTyper(new_smarts_list)
             new_gb_model = GBModel(new_typing_scheme, new_radii)
 
             log_p_forward = np.log(prob_reverse_delete / (len(self.primitives) * len(initial_model.radii - 1)))
@@ -211,7 +210,7 @@ class SwapTwoPatterns(Proposal):
         old_radii = initial_model.radii
 
         if len(initial_model.typing_scheme.smarts_list) <= 2:
-            new_gb_model = GBModel(GBTyper(old_smarts_list), old_radii)
+            new_gb_model = GBModel(FlatGBTyper(old_smarts_list), old_radii)
             return {'proposal': new_gb_model, 'log_p_forward_over_reverse': 0}
         else:
             indices_to_swap = np.random.randint(1, len(initial_model.typing_scheme.smarts_list), 2)
@@ -223,7 +222,7 @@ class SwapTwoPatterns(Proposal):
             new_smarts_list[indices_to_swap[0]] = new_smarts_list[indices_to_swap[1]]
             new_smarts_list[indices_to_swap[1]] = first_smarts
 
-            new_gb_model = GBModel(GBTyper(new_smarts_list), new_radii)
+            new_gb_model = GBModel(FlatGBTyper(new_smarts_list), new_radii)
 
             return {'proposal': new_gb_model, 'log_p_forward_over_reverse': 0}
 

@@ -3,7 +3,7 @@ from openeye import oechem
 from bayes_implicit_solvent.utils import smarts_to_subsearch
 
 
-class GBTyper():
+class FlatGBTyper():
     def __init__(self, smarts_list):
         """List of SMARTS patterns, last match wins
 
@@ -54,3 +54,4 @@ class GBTyper():
 
     def __repr__(self):
         return 'GBTyper with {} types: '.format(self.n_types) + str(self.smarts_list)
+
