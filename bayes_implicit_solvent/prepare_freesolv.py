@@ -3,7 +3,6 @@
 
 # takes approximately 3hours to run serially, and outputs a pickle file
 
-# TODO: Ensure this works correctly -- I think this may look in the wrong directory...
 from pkg_resources import resource_filename
 
 path_to_freesolv = resource_filename('bayes_implicit_solvent', 'data/FreeSolv-0.51/database.txt')
