@@ -2,6 +2,11 @@ import numpy as np
 from openeye import oechem
 from bayes_implicit_solvent.utils import smarts_to_subsearch
 from bayes_implicit_solvent.smarts import decorators as decorator_dict
+from bayes_implicit_solvent.smarts import atomic_number_dict
+import networkx as nx
+from simtk import unit
+from scipy.stats import norm
+from copy import deepcopy
 
 decorators = sorted(list(decorator_dict.keys()))
 def sample_decorator_uniformly_at_random():
@@ -81,5 +86,199 @@ class FlatGBTyper(SMARTSTyper):
     def __repr__(self):
         return 'GBTyper with {} types: '.format(self.n_types) + str(self.smarts_list)
 
+class GBTypingTree():
+    def __init__(self, default_parameters={'radius': 0.1 * unit.nanometer}, proposal_sigma=0.01 * unit.nanometer):
+        """We represent a typing scheme using a tree of elaborations (each child is an elaboration on its parent node)
+        with types assigned using a last-match-wins scheme.
+
+        We will impose some additional constraints on what are allowable typing trees in prior_checking.py, for example, we
+        may require that the scheme not assign the root (wildcard) type to any atom in a base set of molecules (such as DrugBank).
+        We may also require that the scheme not have any redundant types.
+        """
+
+        self.G = nx.DiGraph()
+        self.default_parameters = default_parameters
+        self.proposal_sigma = proposal_sigma
+
+        # initialize wildcard root node
+        self.G.add_node('*', **self.default_parameters)
+
+    @property
+    def ordered_nodes(self):
+        """Order the nodes by a breadth-first search"""
+        return list(nx.breadth_first_search.bfs_tree(self.G, '*').nodes())
+
+    def apply_to_molecule(self, molecule):
+        """Assign types based on last-match-wins during breadth-first search
+
+        Return unit'd array of radii for all atoms in molecule
+        """
+        t = FlatGBTyper(self.ordered_nodes)
+        types = t.get_gb_types(molecule)
+        radii = [self.get_radius(self.ordered_nodes[t]) for t in types]
+        return np.array([r / r.unit for r in radii]) * radii[0].unit
+
+    def apply_to_molecule_list(self, molecules):
+        """Assign types to all molecules in a list"""
+        return list(map(self.apply_to_molecule, molecules))
+
+    def is_leaf(self, node):
+        """Return True if node has no descendents"""
+        return len(self.G[node]) == 0
+
+    @property
+    def number_of_nodes(self):
+        """Return the total number of nodes in the graph"""
+        return len(self.G.nodes())
+
+    @property
+    def number_of_leaves(self):
+        """Return the total number of leaf nodes in the graph"""
+        return sum(list(map(lambda n: self.is_leaf(n), self.G.nodes())))
+
+
+
+    def sample_node_uniformly_at_random(self):
+        """Select any node, including the root"""
+        nodes = list(self.G.nodes())
+        if len(nodes) == 0:
+            raise(RuntimeError('No nodes left!'))
+        return nodes[np.random.randint(len(nodes))]
+
+    def sample_leaf_node_uniformly_at_random(self):
+        """Select any node that has no descendents"""
+        leaf_nodes = [n for n in self.G.nodes() if self.is_leaf(n)]
+        if len(leaf_nodes) == 0:
+            raise(RuntimeError('No leaf nodes left!'))
+        return leaf_nodes[np.random.randint(len(leaf_nodes))]
+
+    def add_child(self, child_smirks, parent_smirks):
+        """Create a new type, and add a directed edge from parent to child"""
+        self.G.add_node(child_smirks, **self.default_parameters)
+        self.G.add_edge(parent_smirks, child_smirks)
+
+    def get_parent_type(self, smirks):
+        """Get the parent of a given type.
+        If we query the root, return None.
+        If there is more than one parent type, raise an error"""
+        incoming_edges = list(self.G.in_edges(smirks))
+        if len(incoming_edges) == 0:
+            return None
+        elif len(incoming_edges) > 1:
+            raise(RuntimeError('More than one parent type!'))
+        else:
+            return incoming_edges[0][0]
+
+    def remove_node(self, smirks, only_allow_leaf_deletion=True):
+        """Remove a node from the graph, optionally prevent deletion of interior nodes"""
+        if only_allow_leaf_deletion:
+            if self.is_leaf(smirks):
+                self.G.remove_node(smirks)
+            else:
+                raise(RuntimeError('Attempted to delete a non-leaf node!'))
+        else:
+            self.G.remove_node(smirks)
+
+    def get_radius(self, smirks):
+        """Get the value of the "radius" property for the smirks type"""
+        return nx.get_node_attributes(self.G, 'radius')[smirks]
+
+    def set_radius(self, smirks, radius):
+        """Set the value of the "radius" property for the smirks type"""
+        nx.set_node_attributes(self.G, {smirks: radius}, name='radius')
+
+    def sample_creation_proposal(self):
+        """Propose to randomly decorate an existing type to create a new type,
+        with a slightly different radius than the existing type.
+        Return a dict containing the new typing tree and the ratio of forward and reverse proposal probabilities."""
+
+        # Create a copy of the current typer, which we will modify and return
+        proposal = deepcopy(self)
+
+        # sample a parent node uniformly at random
+        parent_smirks = self.sample_node_uniformly_at_random()
+
+        # sample a decorator uniformly at random
+        decorator = sample_decorator_uniformly_at_random()
+
+        # create a new type by decorating the parent type
+        child_smirks = parent_smirks + decorator
+        proposal.add_child(child_smirks=child_smirks, parent_smirks=parent_smirks)
+
+        # set the radius of the new type as a gaussian perturbation of the parent's radius
+        # TODO: this bit hard-codes that the only parameter we're interested in is 'radius'
+        parent_radius = self.get_radius(parent_smirks)
+        proposal_radius = self.proposal_sigma * np.random.randn() + parent_radius
+        proposal.set_radius(child_smirks, proposal_radius)
+
+        # compute the log ratio of forward and reverse proposal probabilities
+        # TODO: accumulate these properties in a less manual / error-prone way
+        delta_radius = proposal_radius - parent_radius
+        delta = delta_radius / delta_radius.unit
+        sigma = self.proposal_sigma / delta_radius.unit
+        log_prob_forward = - np.log(len(self.G.nodes())) - np.log(len(decorators)) + norm.logpdf(delta, loc=0, scale=sigma)
+        log_prob_reverse = - np.log(proposal.number_of_leaves)
+        log_prob_reverse_over_forward = log_prob_reverse - log_prob_forward
+
+        return {'proposal': proposal,
+                'log_prob_reverse_over_forward': log_prob_reverse_over_forward,
+                }
+
+
+    def sample_deletion_proposal(self):
+        """Sample a leaf node randomly and propose to delete it.
+        Return a dict containing the new typing tree and the ratio of forward and reverse proposal probabilities."""
+
+        # Create a copy of the current typer, which we will modify and return
+        proposal = deepcopy(self)
+
+        # Delete a leaf at random
+        leaf_to_delete = self.sample_leaf_node_uniformly_at_random()
+        proposal.remove_node(leaf_to_delete)
+
+        # compute the log ratio of forward and reverse proposal probabilities
+        log_prob_forward = - np.log(self.number_of_leaves)
+        parent = self.get_parent_type(leaf_to_delete)
+        leaf_radius = self.get_radius(leaf_to_delete)
+        parent_radius = self.get_radius(parent)
+        delta_radius = leaf_radius - parent_radius
+        delta = delta_radius / delta_radius.unit
+        sigma = self.proposal_sigma / delta_radius.unit
+        # TODO: Double-check that the 1/N_decorator bit is okay
+        log_prob_reverse = - np.log(proposal.number_of_nodes) - np.log(len(decorators)) + norm.logpdf(delta, loc=0, scale=sigma)
+        log_prob_reverse_over_forward = log_prob_reverse - log_prob_forward
+
+        return {'proposal': proposal,
+                'log_prob_reverse_over_forward': log_prob_reverse_over_forward,
+                }
+
+    def sample_create_delete_proposal(self):
+        """Flip a coin and either propose to create or delete a type."""
+        if np.random.rand() <= 0.5:
+            return self.sample_creation_proposal()
+        else:
+            return self.sample_deletion_proposal()
+
+    def __repr__(self):
+        # TODO: Less-janky text representation
+        s = 'parent --> child\n'
+        for e in self.G.edges():
+            s += '\t' + e[0] + ' --> ' + e[1] + '\n'
+        return s
+
+
 if __name__ == '__main__':
-    pass
+    np.random.seed(0)
+    initial_tree = GBTypingTree()
+    for base_type in atomic_number_dict.keys():
+        initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
+    print(initial_tree)
+    creation_proposals = [initial_tree.sample_creation_proposal()]
+
+    for _ in range(10):
+        print('proposal:')
+        print(creation_proposals[-1]['proposal'])
+        print('log_p_reverse_over_forward')
+        print(creation_proposals[-1]['log_prob_reverse_over_forward'])
+
+        creation_proposals.append(creation_proposals[-1]['proposal'].sample_creation_proposal())
