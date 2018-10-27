@@ -224,10 +224,10 @@ class GBTypingTree():
         log_prob_forward = - np.log(len(self.G.nodes())) - np.log(len(decorators)) + norm.logpdf(delta, loc=0,
                                                                                                  scale=sigma)
         log_prob_reverse = - np.log(proposal.number_of_leaves)
-        log_prob_reverse_over_forward = log_prob_reverse - log_prob_forward
+        log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
 
         return {'proposal': proposal,
-                'log_prob_reverse_over_forward': log_prob_reverse_over_forward,
+                'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
                 }
 
     def sample_deletion_proposal(self):
@@ -252,10 +252,10 @@ class GBTypingTree():
         # TODO: Double-check that the 1/N_decorator bit is okay
         log_prob_reverse = - np.log(proposal.number_of_nodes) - np.log(len(decorators)) + norm.logpdf(delta, loc=0,
                                                                                                       scale=sigma)
-        log_prob_reverse_over_forward = log_prob_reverse - log_prob_forward
+        log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
 
         return {'proposal': proposal,
-                'log_prob_reverse_over_forward': log_prob_reverse_over_forward,
+                'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
                 }
 
     def sample_create_delete_proposal(self):
