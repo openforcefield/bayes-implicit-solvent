@@ -1,16 +1,21 @@
-import numpy as np
-from openeye import oechem
-from bayes_implicit_solvent.utils import smarts_to_subsearch
-from bayes_implicit_solvent.smarts import decorators as decorator_dict
-from bayes_implicit_solvent.smarts import atomic_number_dict
-import networkx as nx
-from simtk import unit
-from scipy.stats import norm
 from copy import deepcopy
 
+import networkx as nx
+import numpy as np
+from openeye import oechem
+from scipy.stats import norm
+from simtk import unit
+
+from bayes_implicit_solvent.smarts import atomic_number_dict
+from bayes_implicit_solvent.smarts import decorators as decorator_dict
+from bayes_implicit_solvent.utils import smarts_to_subsearch
+
 decorators = sorted(list(decorator_dict.keys()))
+
+
 def sample_decorator_uniformly_at_random():
     return decorators[np.random.randint(len(decorators))]
+
 
 class SMARTSTyper():
     def __init__(self, smarts_iter):
@@ -30,7 +35,7 @@ class SMARTSTyper():
         """
 
         self.smarts_iter = smarts_iter
-        self.smarts_list = list(self.smarts_iter) # flatten out the iterable
+        self.smarts_list = list(self.smarts_iter)  # flatten out the iterable
         self.subsearches = list(map(smarts_to_subsearch, self.smarts_list))
 
     def get_matches(self, oemol):
@@ -54,6 +59,7 @@ class SMARTSTyper():
 
     def __repr__(self):
         return 'SMARTSTyper with {} patterns: '.format(len(self.smarts_list)) + str(self.smarts_list)
+
 
 class FlatGBTyper(SMARTSTyper):
     def __init__(self, smarts_list):
@@ -85,6 +91,7 @@ class FlatGBTyper(SMARTSTyper):
 
     def __repr__(self):
         return 'GBTyper with {} types: '.format(self.n_types) + str(self.smarts_list)
+
 
 class GBTypingTree():
     def __init__(self, default_parameters={'radius': 0.1 * unit.nanometer}, proposal_sigma=0.01 * unit.nanometer):
@@ -136,20 +143,18 @@ class GBTypingTree():
         """Return the total number of leaf nodes in the graph"""
         return sum(list(map(lambda n: self.is_leaf(n), self.G.nodes())))
 
-
-
     def sample_node_uniformly_at_random(self):
         """Select any node, including the root"""
         nodes = list(self.G.nodes())
         if len(nodes) == 0:
-            raise(RuntimeError('No nodes left!'))
+            raise (RuntimeError('No nodes left!'))
         return nodes[np.random.randint(len(nodes))]
 
     def sample_leaf_node_uniformly_at_random(self):
         """Select any node that has no descendents"""
         leaf_nodes = [n for n in self.G.nodes() if self.is_leaf(n)]
         if len(leaf_nodes) == 0:
-            raise(RuntimeError('No leaf nodes left!'))
+            raise (RuntimeError('No leaf nodes left!'))
         return leaf_nodes[np.random.randint(len(leaf_nodes))]
 
     def add_child(self, child_smirks, parent_smirks):
@@ -165,7 +170,7 @@ class GBTypingTree():
         if len(incoming_edges) == 0:
             return None
         elif len(incoming_edges) > 1:
-            raise(RuntimeError('More than one parent type!'))
+            raise (RuntimeError('More than one parent type!'))
         else:
             return incoming_edges[0][0]
 
@@ -175,7 +180,7 @@ class GBTypingTree():
             if self.is_leaf(smirks):
                 self.G.remove_node(smirks)
             else:
-                raise(RuntimeError('Attempted to delete a non-leaf node!'))
+                raise (RuntimeError('Attempted to delete a non-leaf node!'))
         else:
             self.G.remove_node(smirks)
 
@@ -216,14 +221,14 @@ class GBTypingTree():
         delta_radius = proposal_radius - parent_radius
         delta = delta_radius / delta_radius.unit
         sigma = self.proposal_sigma / delta_radius.unit
-        log_prob_forward = - np.log(len(self.G.nodes())) - np.log(len(decorators)) + norm.logpdf(delta, loc=0, scale=sigma)
+        log_prob_forward = - np.log(len(self.G.nodes())) - np.log(len(decorators)) + norm.logpdf(delta, loc=0,
+                                                                                                 scale=sigma)
         log_prob_reverse = - np.log(proposal.number_of_leaves)
         log_prob_reverse_over_forward = log_prob_reverse - log_prob_forward
 
         return {'proposal': proposal,
                 'log_prob_reverse_over_forward': log_prob_reverse_over_forward,
                 }
-
 
     def sample_deletion_proposal(self):
         """Sample a leaf node randomly and propose to delete it.
@@ -245,7 +250,8 @@ class GBTypingTree():
         delta = delta_radius / delta_radius.unit
         sigma = self.proposal_sigma / delta_radius.unit
         # TODO: Double-check that the 1/N_decorator bit is okay
-        log_prob_reverse = - np.log(proposal.number_of_nodes) - np.log(len(decorators)) + norm.logpdf(delta, loc=0, scale=sigma)
+        log_prob_reverse = - np.log(proposal.number_of_nodes) - np.log(len(decorators)) + norm.logpdf(delta, loc=0,
+                                                                                                      scale=sigma)
         log_prob_reverse_over_forward = log_prob_reverse - log_prob_forward
 
         return {'proposal': proposal,
