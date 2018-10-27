@@ -1,10 +1,11 @@
 """In this file we'll show that at one extreme, if we have a very poor / inflexible typing scheme,
-we'll have a hard-time finding any setting of the continuous parameters that reproduces the desired
+we'll have a hard time finding any setting of the continuous parameters that reproduces the desired
 measurements.
 
-Our toy model will contain just two types "hydrogen" vs "not hydrogen", so we can plot and see what's happening.
+Our toy model will contain just two types -- "hydrogen" vs "not hydrogen" -- so we can plot in 2D
+and inspect what's happening.
 
-We'll apply this to:
+We'll attempt to fit GB radii using this restricted typing scheme on the following subsets of FreeSolv:
 * A single molecule (methane)
 * A sequence of alkanes up to length 10
 * A randomly selected quarter of FreeSolv
