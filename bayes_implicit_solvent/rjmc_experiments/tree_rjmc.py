@@ -23,7 +23,7 @@ mols = []
 
 smiles_subset = list(smiles_list)
 np.random.shuffle(smiles_subset)
-smiles_subset = smiles_subset[:10]
+smiles_subset = smiles_subset[:int(len(smiles_list) / 10)]
 n_configuration_samples = 10
 
 for smiles in smiles_subset:
@@ -93,5 +93,5 @@ def tree_rjmc(initial_tree, n_iterations=1000, fraction_cross_model_proposals=0.
 from pickle import dump
 
 result = tree_rjmc(initial_tree)
-with open('tree_rjmc_run.pkl', 'wb') as f:
+with open('tree_rjmc_run_{}.pkl'.format(len(smiles_subset)), 'wb') as f:
     dump(result, f)
