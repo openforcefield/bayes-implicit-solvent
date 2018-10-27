@@ -7,11 +7,11 @@ from scipy.stats import norm
 from simtk import unit
 
 from bayes_implicit_solvent.smarts import atomic_number_dict
-from bayes_implicit_solvent.smarts import decorators as decorator_dict
+#from bayes_implicit_solvent.smarts import decorators as decorator_dict
 from bayes_implicit_solvent.utils import smarts_to_subsearch
 
-decorators = sorted(list(decorator_dict.keys()))
-
+decorators = ['~{}'.format(a) for a in atomic_number_dict]
+print('using the following decorators')
 
 def sample_decorator_uniformly_at_random():
     return decorators[np.random.randint(len(decorators))]
@@ -118,10 +118,13 @@ class GBTypingTree():
     def apply_to_molecule(self, molecule):
         """Assign types based on last-match-wins during breadth-first search
 
-        Return unit'd array of radii for all atoms in molecule
+        Return integer array of types
         """
-        t = FlatGBTyper(self.ordered_nodes)
-        types = t.get_gb_types(molecule)
+        return FlatGBTyper(self.ordered_nodes).get_gb_types(molecule)
+
+    def assign_radii(self, molecule):
+        """Return a unit'd array of radii"""
+        types = self.apply_to_molecule(molecule)
         radii = [self.get_radius(self.ordered_nodes[t]) for t in types]
         return np.array([r / r.unit for r in radii]) * radii[0].unit
 
@@ -264,6 +267,20 @@ class GBTypingTree():
             return self.sample_creation_proposal()
         else:
             return self.sample_deletion_proposal()
+
+    def sample_radius_perturbation_proposal(self):
+        """Pick a type at random and propose to perturb its radius slightly"""
+
+        proposal = deepcopy(self)
+
+        node = self.sample_node_uniformly_at_random()
+        initial_radius = self.get_radius(node)
+        proposal_radius = self.proposal_sigma * np.random.randn() + initial_radius
+        proposal.set_radius(node, proposal_radius)
+
+        return {'proposal': proposal,
+                'log_prob_forward_over_reverse': 0, # symmetric
+                }
 
     def __repr__(self):
         # TODO: Less-janky text representation
