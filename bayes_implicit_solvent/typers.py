@@ -11,7 +11,8 @@ from bayes_implicit_solvent.smarts import atomic_number_dict
 from bayes_implicit_solvent.utils import smarts_to_subsearch
 
 decorators = ['~{}'.format(a) for a in atomic_number_dict]
-print('using the following decorators')
+print('using the following decorators:')
+print(decorators)
 
 def sample_decorator_uniformly_at_random():
     return decorators[np.random.randint(len(decorators))]

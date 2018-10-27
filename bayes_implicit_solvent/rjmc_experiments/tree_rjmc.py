@@ -23,7 +23,7 @@ mols = []
 
 smiles_subset = list(smiles_list)
 np.random.shuffle(smiles_subset)
-smiles_subset = smiles_subset[:int(len(smiles_list) / 10)]
+smiles_subset = smiles_subset[:int(len(smiles_list) / 2)]
 n_configuration_samples = 10
 
 for smiles in smiles_subset:
