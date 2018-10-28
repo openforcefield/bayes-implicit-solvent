@@ -146,9 +146,11 @@ class Molecule():
         simulation_mean, simulation_uncertainty = self.predict_solvation_free_energy(radii)
 
         mu = self.experimental_value
-        sigma2 = self.experimental_uncertainty * max([self.experimental_uncertainty, simulation_uncertainty])
+        sigma = np.sqrt(self.experimental_uncertainty * max([self.experimental_uncertainty, simulation_uncertainty]))
 
-        return student_t.logpdf(simulation_mean, loc=mu, scale=sigma2, df=2)
+        return student_t.logpdf(simulation_mean, loc=mu,
+                                scale=sigma, # TODO: Look up how best to put scale information here
+                                df=7) # TODO: Decide what to use for the degrees of freedom parameter
 
     def log_prior(self, radii):
         """Un-normalized log-prior: uniform in [0.01, 1.0]^n_atoms"""
@@ -157,15 +159,14 @@ class Molecule():
         if (np.min(radii) < min_r) or (np.max(radii) > max_r):
             return - np.inf
         else:
-            return dim * np.log(0.5)  # uniform prior, unnormalized
-            # return dim * np.log(max_r - min_r)  # uniform prior, normalized
-        # i'm not sure I implemented this "flat prior" correctly -- will give different behavior if (max_r - min_r) > 0, <0, or =0...
+            return dim * np.log(max_r - min_r)  # uniform prior, normalized
 
     def log_prob(self, radii):
         """Un-normalized log-probability : log-prior + log-likelihood"""
         prior = self.log_prior(radii)
         if prior > -np.inf:
-            ll = self.log_likelihood(radii)
+            #ll = self.log_likelihood(radii)  # TODO: Switch back to Student-t?
+            ll = self.gaussian_log_likelihood(radii)
             return prior + ll
         else:
             return prior

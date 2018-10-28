@@ -23,7 +23,7 @@ mols = []
 
 smiles_subset = list(smiles_list)
 np.random.shuffle(smiles_subset)
-smiles_subset = smiles_subset[:int(len(smiles_list) / 10)]
+smiles_subset = smiles_subset[:int(len(smiles_list) / 2)]
 print('looking at only {} entries from FreeSolv'.format(len(smiles_subset)))
 n_configuration_samples = 10
 
@@ -97,7 +97,7 @@ from pickle import dump
 
 n_iterations = 1000
 result = tree_rjmc(initial_tree, n_iterations=n_iterations)
-with open('bugfixed_tree_rjmc_run_n_compounds={}_n_iter={}.pkl'.format(len(smiles_subset), n_iterations) , 'wb') as f:
+with open('bugfixed_tree_rjmc_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(smiles_subset), n_iterations) , 'wb') as f:
     dump(result, f)
 
 with open('error_y_trees.pkl', 'wb') as f:
