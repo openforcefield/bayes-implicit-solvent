@@ -308,6 +308,11 @@ class GBTypingTree():
 
     def sample_create_delete_proposal(self):
         """Flip a coin and either propose to create or delete a type"""
+
+        if self.number_of_delete_able_nodes == 0:
+            return self.sample_creation_proposal()
+        # TODO: Double-check, probably need to modify log_prob_forward_over_reverse at this boundary?
+
         if np.random.rand() <= 0.5:
             return self.sample_creation_proposal()
         else:

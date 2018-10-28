@@ -43,19 +43,23 @@ def remove_unit(unitd_quantity):
     """TODO: fix mol.log_prior function so this step isn't necessary"""
     return unitd_quantity / unitd_quantity.unit
 
+from bayes_implicit_solvent.prior_checking import check_no_empty_types
 error_y_trees = []
 def log_prob(tree):
-    # TODO: add prior checking, also don't propose so many invalid smarts
-    log_prior = 0
-    try:
-        log_posterior = sum([mol.log_prob(remove_unit(tree.assign_radii(mol.mol))) for mol in mols])
-    except:
-        global error_y_trees
-        error_y_trees.append(tree)
-        print('Warning! Encountered un-anticipated exception!')
-        return - np.inf
-    # return sum([mol.log_prob(tree.assign_radii(mol.mol)) for mol in mols])
-    return log_prior + log_posterior
+    log_prior = check_no_empty_types(tree)
+
+    if log_prior > -np.inf:
+        try:
+            log_posterior = sum([mol.log_prob(remove_unit(tree.assign_radii(mol.mol))) for mol in mols])
+        except:
+            global error_y_trees
+            error_y_trees.append(tree)
+            print('Warning! Encountered un-anticipated exception!')
+            return - np.inf
+        # return sum([mol.log_prob(tree.assign_radii(mol.mol)) for mol in mols])
+        return log_prior + log_posterior
+    else:
+        return log_prior
 
 
 def tree_rjmc(initial_tree, n_iterations=1000, fraction_cross_model_proposals=0.05):
