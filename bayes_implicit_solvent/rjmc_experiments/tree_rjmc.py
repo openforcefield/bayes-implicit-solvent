@@ -23,7 +23,8 @@ mols = []
 
 smiles_subset = list(smiles_list)
 np.random.shuffle(smiles_subset)
-smiles_subset = smiles_subset[:int(len(smiles_list) / 2)]
+smiles_subset = smiles_subset[:int(len(smiles_list) / 10)]
+print('looking at only {} entries from FreeSolv'.format(len(smiles_subset)))
 n_configuration_samples = 10
 
 for smiles in smiles_subset:
@@ -42,14 +43,16 @@ def remove_unit(unitd_quantity):
     """TODO: fix mol.log_prior function so this step isn't necessary"""
     return unitd_quantity / unitd_quantity.unit
 
-
+error_y_trees = []
 def log_prob(tree):
     # TODO: add prior checking, also don't propose so many invalid smarts
     log_prior = 0
     try:
         log_posterior = sum([mol.log_prob(remove_unit(tree.assign_radii(mol.mol))) for mol in mols])
-        print('Warning! Encountered un-anticipated exception.')
     except:
+        global error_y_trees
+        error_y_trees.append(tree)
+        print('Warning! Encountered un-anticipated exception!')
         return - np.inf
     # return sum([mol.log_prob(tree.assign_radii(mol.mol)) for mol in mols])
     return log_prior + log_posterior
@@ -92,6 +95,10 @@ def tree_rjmc(initial_tree, n_iterations=1000, fraction_cross_model_proposals=0.
 
 from pickle import dump
 
-result = tree_rjmc(initial_tree)
-with open('tree_rjmc_run_{}.pkl'.format(len(smiles_subset)), 'wb') as f:
+n_iterations = 1000
+result = tree_rjmc(initial_tree, n_iterations=n_iterations)
+with open('bugfixed_tree_rjmc_run_n_compounds={}_n_iter={}.pkl'.format(len(smiles_subset), n_iterations) , 'wb') as f:
     dump(result, f)
+
+with open('error_y_trees.pkl', 'wb') as f:
+    dump(error_y_trees, f)

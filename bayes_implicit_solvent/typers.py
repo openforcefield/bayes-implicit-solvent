@@ -7,12 +7,14 @@ from scipy.stats import norm
 from simtk import unit
 
 from bayes_implicit_solvent.smarts import atomic_number_dict
-#from bayes_implicit_solvent.smarts import decorators as decorator_dict
+# from bayes_implicit_solvent.smarts import decorators as decorator_dict
 from bayes_implicit_solvent.utils import smarts_to_subsearch
 
 decorators = ['~{}'.format(a) for a in atomic_number_dict]
 print('using the following decorators:')
 print(decorators)
+
+un_delete_able_types = set(['*'] + list(atomic_number_dict.keys()))
 
 def sample_decorator_uniformly_at_random():
     return decorators[np.random.randint(len(decorators))]
@@ -137,15 +139,42 @@ class GBTypingTree():
         """Return True if node has no descendents"""
         return len(self.G[node]) == 0
 
+    def is_delete_able(self, node):
+        """Return True if node can be deleted.
+
+        Currently, we prevent deletion of:
+        * non-leaf nodes
+        * the wild-card node
+        * any of the atomic-number nodes"""
+        # TODO: refactor this a bit
+        return self.is_leaf(node) and (not (node in un_delete_able_types))
+
+    def is_decorate_able(self, node):
+        """Return True if we can create direct descendant types from this node.
+
+        Currently, we prevent proposing new direct descendants of the root '*'
+        """
+        return node != '*'
+
     @property
     def number_of_nodes(self):
-        """Return the total number of nodes in the graph"""
+        """The total number of nodes in the graph"""
         return len(self.G.nodes())
 
     @property
     def number_of_leaves(self):
-        """Return the total number of leaf nodes in the graph"""
+        """The total number of leaf nodes in the graph"""
         return sum(list(map(lambda n: self.is_leaf(n), self.G.nodes())))
+
+    @property
+    def number_of_delete_able_nodes(self):
+        """The total number of delete-able nodes in the graph"""
+        return sum(list(map(lambda n: self.is_delete_able(n), self.G.nodes())))
+
+    @property
+    def number_of_decorate_able_nodes(self):
+        """The total number of decorate-able nodes in the graph"""
+        return sum(list(map(lambda n: self.is_decorate_able(n), self.G.nodes())))
 
     def sample_node_uniformly_at_random(self):
         """Select any node, including the root"""
@@ -154,12 +183,26 @@ class GBTypingTree():
             raise (RuntimeError('No nodes left!'))
         return nodes[np.random.randint(len(nodes))]
 
+    def sample_delete_able_node_uniformly_at_random(self):
+        """Select among the delete-able leaf nodes"""
+        delete_able_nodes = [n for n in self.G.nodes() if self.is_delete_able(n)]
+        if len(delete_able_nodes) == 0:
+            raise (RuntimeError('No delete-able nodes left!'))
+        return delete_able_nodes[np.random.randint(len(delete_able_nodes))]
+
     def sample_leaf_node_uniformly_at_random(self):
         """Select any node that has no descendents"""
         leaf_nodes = [n for n in self.G.nodes() if self.is_leaf(n)]
         if len(leaf_nodes) == 0:
             raise (RuntimeError('No leaf nodes left!'))
         return leaf_nodes[np.random.randint(len(leaf_nodes))]
+
+    def sample_decorate_able_node_uniformly_at_random(self):
+        """Select any node we can propose to decorate"""
+        decorate_able_nodes = [n for n in self.G.nodes() if self.is_decorate_able(n)]
+        if len(decorate_able_nodes) == 0:
+            raise (RuntimeError('No decorate-able nodes left!'))
+        return decorate_able_nodes[np.random.randint(len(decorate_able_nodes))]
 
     def add_child(self, child_smirks, parent_smirks):
         """Create a new type, and add a directed edge from parent to child"""
@@ -204,8 +247,8 @@ class GBTypingTree():
         # Create a copy of the current typer, which we will modify and return
         proposal = deepcopy(self)
 
-        # sample a parent node uniformly at random
-        parent_smirks = self.sample_node_uniformly_at_random()
+        # sample a parent node uniformly at random from decorate-able nodes
+        parent_smirks = self.sample_decorate_able_node_uniformly_at_random()
 
         # sample a decorator uniformly at random
         decorator = sample_decorator_uniformly_at_random()
@@ -225,9 +268,10 @@ class GBTypingTree():
         delta_radius = proposal_radius - parent_radius
         delta = delta_radius / delta_radius.unit
         sigma = self.proposal_sigma / delta_radius.unit
-        log_prob_forward = - np.log(len(self.G.nodes())) - np.log(len(decorators)) + norm.logpdf(delta, loc=0,
-                                                                                                 scale=sigma)
-        log_prob_reverse = - np.log(proposal.number_of_leaves)
+        log_prob_forward = - np.log(self.number_of_decorate_able_nodes) \
+                           - np.log(len(decorators)) \
+                           + norm.logpdf(delta, loc=0, scale=sigma)
+        log_prob_reverse = - np.log(proposal.number_of_delete_able_nodes)
         log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
 
         return {'proposal': proposal,
@@ -235,27 +279,27 @@ class GBTypingTree():
                 }
 
     def sample_deletion_proposal(self):
-        """Sample a leaf node randomly and propose to delete it.
+        """Sample a (delete-able) leaf node randomly and propose to delete it.
         Return a dict containing the new typing tree and the ratio of forward and reverse proposal probabilities."""
 
         # Create a copy of the current typer, which we will modify and return
         proposal = deepcopy(self)
 
-        # Delete a leaf at random
-        leaf_to_delete = self.sample_leaf_node_uniformly_at_random()
+        # Delete a delete-able node leaf at random
+        leaf_to_delete = self.sample_delete_able_node_uniformly_at_random()
         proposal.remove_node(leaf_to_delete)
 
         # compute the log ratio of forward and reverse proposal probabilities
-        log_prob_forward = - np.log(self.number_of_leaves)
+        log_prob_forward = - np.log(self.number_of_delete_able_nodes)
         parent = self.get_parent_type(leaf_to_delete)
         leaf_radius = self.get_radius(leaf_to_delete)
         parent_radius = self.get_radius(parent)
         delta_radius = leaf_radius - parent_radius
         delta = delta_radius / delta_radius.unit
         sigma = self.proposal_sigma / delta_radius.unit
-        # TODO: Double-check that the 1/N_decorator bit is okay
-        log_prob_reverse = - np.log(proposal.number_of_nodes) - np.log(len(decorators)) + norm.logpdf(delta, loc=0,
-                                                                                                      scale=sigma)
+        log_prob_reverse = - np.log(proposal.number_of_decorate_able_nodes) \
+                           - np.log(len(decorators)) \
+                           + norm.logpdf(delta, loc=0, scale=sigma)
         log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
 
         return {'proposal': proposal,
@@ -263,7 +307,7 @@ class GBTypingTree():
                 }
 
     def sample_create_delete_proposal(self):
-        """Flip a coin and either propose to create or delete a type."""
+        """Flip a coin and either propose to create or delete a type"""
         if np.random.rand() <= 0.5:
             return self.sample_creation_proposal()
         else:
@@ -280,7 +324,7 @@ class GBTypingTree():
         proposal.set_radius(node, proposal_radius)
 
         return {'proposal': proposal,
-                'log_prob_forward_over_reverse': 0, # symmetric
+                'log_prob_forward_over_reverse': 0,  # symmetric
                 }
 
     def __repr__(self):
