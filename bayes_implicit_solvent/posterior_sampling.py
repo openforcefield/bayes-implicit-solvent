@@ -100,6 +100,8 @@ class Molecule():
 
         if verbose: print('successfully initialized {}'.format(self.mol_name))
 
+        self.log_prob_cache = dict()
+
     def predict_solvation_free_energy(self, radii):
         """Use one-sided EXP to predict the solvation free energy using this set of radii
 
@@ -161,7 +163,7 @@ class Molecule():
         else:
             return dim * np.log(max_r - min_r)  # uniform prior, normalized
 
-    def log_prob(self, radii):
+    def log_prob_uncached(self, radii):
         """Un-normalized log-probability : log-prior + log-likelihood"""
         prior = self.log_prior(radii)
         if prior > -np.inf:
@@ -171,6 +173,15 @@ class Molecule():
         else:
             return prior
 
+    def log_prob(self, radii):
+        r_tuple = tuple(radii)
+
+        # TODO: Replace dictionary (whose memory footprint will keep increasing throughout
+        # the object's lifetime) with deque
+        if r_tuple not in self.log_prob_cache:
+            self.log_prob_cache[r_tuple] = self.log_prob_uncached(radii)
+
+        return self.log_prob_cache[r_tuple]
 
 if __name__ == '__main__':
     from bayes_implicit_solvent.samplers import random_walk_mh
