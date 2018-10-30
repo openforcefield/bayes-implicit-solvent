@@ -7,18 +7,149 @@ from scipy.stats import norm
 from simtk import unit
 
 from bayes_implicit_solvent.smarts import atomic_number_dict
-# from bayes_implicit_solvent.smarts import decorators as decorator_dict
 from bayes_implicit_solvent.utils import smarts_to_subsearch
 
-decorators = ['~{}'.format(a) for a in atomic_number_dict]
 print('using the following decorators:')
-print(decorators)
 
-un_delete_able_types = set(['*'] + list(atomic_number_dict.keys()))
+bond_specifiers = ['@', '-', '#', '=', ':']
+print('bond_specifiers (replace "~" bonds)\n\t', bond_specifiers)
 
-def sample_decorator_uniformly_at_random():
-    return decorators[np.random.randint(len(decorators))]
+bondable_types = list(atomic_number_dict.keys())
 
+# this is a group that appears a 9 times in the smirnoff99frosst nonbonded definitions for hydrogens
+bondable_types.append('[(#7,#8,#9,#16,#17,#35)]')
+
+# atomic_decorators list:
+ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7']
+charge_specifiers = ['+0', '+1', '+2']
+hydrogen_count_specifiers = ['H0', 'H1', 'H2', 'H3', 'H4']
+connectivity_specifiers = ['X1', 'X2', 'X3', 'X4']
+
+all_specifier_lists = [
+    ring_specifiers,
+    charge_specifiers,
+    hydrogen_count_specifiers,
+    connectivity_specifiers,
+]
+
+from itertools import chain
+atomic_specifiers = list(chain(*all_specifier_lists))
+
+print('atomic_specifiers (&\'d into atom definitions)\n\t', atomic_specifiers)
+
+bondable_types += ['[{}]'.format(s) for s in atomic_specifiers]
+
+print('bondable_types (~\'d onto atoms)\n\t', bondable_types)
+
+all_decorators = bondable_types + atomic_specifiers + bond_specifiers
+
+def sample_bond_proposal(initial_smirks):
+    """Find square brackets, and propose to any-bond it to any element of bondable_types
+
+    [#1] --> [#1]~[#8]
+    [#1] --> [#6]~[-1]
+
+    # TODO: Also allow multiple bond specification
+    # TODO: e.g. '[#7]-[#6]' --> '[#7]([#1])-[#6]'
+    (Although in that example we could also specify this by (!H0) I guess
+    """
+    closing_bracket_indices = [i for i in range(len(initial_smirks)) if initial_smirks[i] == ']']
+
+    n_atoms = len(closing_bracket_indices)
+
+    if n_atoms == 0:
+        raise(RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
+    ind_to_insert = np.random.choice(closing_bracket_indices) + 1
+
+    decorator = '~{}'.format(np.random.choice(bondable_types))
+
+    proposal_smirks = initial_smirks[:ind_to_insert] + decorator + initial_smirks[ind_to_insert:]
+
+    number_of_ways_to_go_forward = n_atoms * len(bondable_types)
+    number_of_ways_to_go_backward = 1
+
+    log_prob_forward = - np.log(number_of_ways_to_go_forward)
+    log_prob_reverse = - np.log(number_of_ways_to_go_backward)
+
+    log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
+    return {
+        'proposal': proposal_smirks,
+        'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
+    }
+
+def sample_atom_specification_proposal(initial_smirks):
+    """Look inside square brackets, and try &'ing the current definition with something"""
+
+    closing_bracket_indices = [i for i in range(len(initial_smirks)) if initial_smirks[i] == ']']
+
+    n_atoms = len(closing_bracket_indices)
+
+    if n_atoms == 0:
+        raise(RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
+    ind_to_insert = np.random.choice(closing_bracket_indices)
+
+    decorator = '&{}'.format(np.random.choice(atomic_specifiers))
+
+    proposal_smirks = initial_smirks[:ind_to_insert] + decorator + initial_smirks[ind_to_insert:]
+
+    number_of_ways_to_go_forward = n_atoms * len(atomic_specifiers)
+    number_of_ways_to_go_backward = 1
+
+    log_prob_forward = - np.log(number_of_ways_to_go_forward)
+    log_prob_reverse = - np.log(number_of_ways_to_go_backward)
+
+    log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
+    return {
+        'proposal': proposal_smirks,
+        'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
+    }
+
+def sample_bond_specification_proposal(initial_smirks):
+    """Look at unspecified bonds, randomly replace them with one of the bond specifiers"""
+    if '~' not in initial_smirks:
+        # contained no any-bonds
+        proposal_smirks = initial_smirks
+        number_of_ways_to_go_forward = 0 # calling -np.log(0) clutters up the terminal a bit
+        log_prob_forward = - np.inf
+    else:
+        components = initial_smirks.split('~')
+        bonds = ['~'] * (len(components) - 1)
+        bonds[np.random.randint(len(bonds))] = np.random.choice(bond_specifiers)
+
+        # components[0] + bonds[0] + components[1] + bonds[1] + ... + components[-1]
+        s = []
+        for i in range(len(bonds)):
+            s.append(components[i])
+            s.append(bonds[i])
+        s.append(components[-1])
+        proposal_smirks = ''.join(s)
+        number_of_ways_to_go_forward = len(bond_specifiers) * len(bonds)
+        log_prob_forward = - np.log(number_of_ways_to_go_forward)
+
+    number_of_ways_to_go_backward = 1
+
+
+    log_prob_reverse = - np.log(number_of_ways_to_go_backward)
+
+    log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
+    return {
+        'proposal': proposal_smirks,
+        'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
+    }
+
+smirks_elaborators = [
+    sample_bond_proposal,
+    sample_atom_specification_proposal,
+    sample_bond_specification_proposal,
+]
+
+def sample_smirks_elaboration_proposal(initial_smirks):
+    """Pick one of the smirks_elaborators at random, and sample its proposal"""
+    log_prob_pick_elaborator = - np.log(len(smirks_elaborators))
+    proposal_dict = np.random.choice(smirks_elaborators)(initial_smirks)
+    #print('smirks proposal: {} --> {}'.format(initial_smirks, proposal_dict['proposal']))
+    proposal_dict['log_prob_forward_over_reverse'] += log_prob_pick_elaborator
+    return proposal_dict
 
 class SMARTSTyper():
     def __init__(self, smarts_iter):
@@ -99,7 +230,12 @@ class FlatGBTyper(SMARTSTyper):
 
 
 class GBTypingTree():
-    def __init__(self, default_parameters={'radius': 0.1 * unit.nanometer}, proposal_sigma=0.01 * unit.nanometer):
+    def __init__(self,
+                 default_parameters={'radius': 0.1 * unit.nanometer},
+                 proposal_sigma=0.01 * unit.nanometer,
+                 un_delete_able_types=set(['*']),
+                 sample_smirks_elaboration_proposal=sample_smirks_elaboration_proposal,
+                 ):
         """We represent a typing scheme using a tree of elaborations (each child is an elaboration on its parent node)
         with types assigned using a last-match-wins scheme.
 
@@ -111,9 +247,10 @@ class GBTypingTree():
         self.G = nx.DiGraph()
         self.default_parameters = default_parameters
         self.proposal_sigma = proposal_sigma
-
+        self.un_delete_able_types = un_delete_able_types
         # initialize wildcard root node
         self.G.add_node('*', **self.default_parameters)
+        self.sample_smirks_elaboration_proposal = sample_smirks_elaboration_proposal
 
     @property
     def ordered_nodes(self):
@@ -125,6 +262,8 @@ class GBTypingTree():
 
         Return integer array of types
         """
+        # TODO: For tall trees, will be more efficient to only call oechem on the nodes that are actually
+        # TODO: visited during breadth-first search, rather than calling oechem on all of the nodes first
         return FlatGBTyper(self.ordered_nodes).get_gb_types(molecule)
 
     def assign_radii(self, molecule):
@@ -149,7 +288,7 @@ class GBTypingTree():
         * the wild-card node
         * any of the atomic-number nodes"""
         # TODO: refactor this a bit
-        return self.is_leaf(node) and (not (node in un_delete_able_types))
+        return self.is_leaf(node) and (not (node in self.un_delete_able_types))
 
     def is_decorate_able(self, node):
         """Return True if we can create direct descendant types from this node.
@@ -252,15 +391,16 @@ class GBTypingTree():
         # sample a parent node uniformly at random from decorate-able nodes
         parent_smirks = self.sample_decorate_able_node_uniformly_at_random()
 
-        # sample a decorator uniformly at random
-        decorator = sample_decorator_uniformly_at_random()
+        # create a new type by elaborating on the parent type
+        elaboration_proposal_dict = self.sample_smirks_elaboration_proposal(parent_smirks)
+        child_smirks = elaboration_proposal_dict['proposal']
 
-        # create a new type by decorating the parent type
-        child_smirks = parent_smirks + decorator
+        # create a new type by elaborating on the parent type
         proposal.add_child(child_smirks=child_smirks, parent_smirks=parent_smirks)
 
         # set the radius of the new type as a gaussian perturbation of the parent's radius
         # TODO: this bit hard-codes that the only parameter we're interested in is 'radius'
+        # TODO: Also interested in scale, for example, and potentially also the SASA term
         parent_radius = self.get_radius(parent_smirks)
         proposal_radius = self.proposal_sigma * np.random.randn() + parent_radius
         proposal.set_radius(child_smirks, proposal_radius)
@@ -270,11 +410,14 @@ class GBTypingTree():
         delta_radius = proposal_radius - parent_radius
         delta = delta_radius / delta_radius.unit
         sigma = self.proposal_sigma / delta_radius.unit
+
+
         log_prob_forward = - np.log(self.number_of_decorate_able_nodes) \
-                           - np.log(len(decorators)) \
                            + norm.logpdf(delta, loc=0, scale=sigma)
         log_prob_reverse = - np.log(proposal.number_of_delete_able_nodes)
         log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
+        # include contributions from all the choices made in the smirks_elaboration_proposal
+        log_prob_forward_over_reverse += elaboration_proposal_dict['log_prob_forward_over_reverse']
 
         return {'proposal': proposal,
                 'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
@@ -299,8 +442,13 @@ class GBTypingTree():
         delta_radius = leaf_radius - parent_radius
         delta = delta_radius / delta_radius.unit
         sigma = self.proposal_sigma / delta_radius.unit
+
+        # TODO: the "- np.log(len(all_decorators))" term is almost certainly incorrect!
+        # (I think we need to sum up over all of the smirks nodes, which might have more than
+        # one atom or bond. For initial tinkering, this will be close-ish, but it's almost certainly
+        # wrong!)
         log_prob_reverse = - np.log(proposal.number_of_decorate_able_nodes) \
-                           - np.log(len(decorators)) \
+                           - np.log(len(all_decorators)) \
                            + norm.logpdf(delta, loc=0, scale=sigma)
         log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
 
@@ -343,6 +491,16 @@ class GBTypingTree():
 
 
 if __name__ == '__main__':
+    initial_smirks = '[#8]'
+    for _ in range(50):
+        proposal = sample_smirks_elaboration_proposal(initial_smirks)
+        proposed_smirks = proposal['proposal']
+        print('proposal: {} --> {}'.format(initial_smirks, proposed_smirks))
+        lpfr = proposal['log_prob_forward_over_reverse']
+        print('log prob forward over reverse = {}'.format(lpfr))
+        if np.random.rand() < np.exp(-lpfr):
+            initial_smirks = proposed_smirks
+
     np.random.seed(0)
     initial_tree = GBTypingTree()
     for base_type in atomic_number_dict.keys():
@@ -353,7 +511,7 @@ if __name__ == '__main__':
     for _ in range(10):
         print('proposal:')
         print(creation_proposals[-1]['proposal'])
-        print('log_p_reverse_over_forward')
-        print(creation_proposals[-1]['log_prob_reverse_over_forward'])
+        print('log_prob_forward_over_reverse')
+        print(creation_proposals[-1]['log_prob_forward_over_reverse'])
 
         creation_proposals.append(creation_proposals[-1]['proposal'].sample_creation_proposal())
