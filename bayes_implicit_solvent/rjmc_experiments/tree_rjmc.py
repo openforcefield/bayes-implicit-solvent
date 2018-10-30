@@ -12,8 +12,12 @@ from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
 data_path = '../data/'
 
 np.random.seed(0)
-initial_tree = GBTypingTree()
+
+un_delete_able_types = ['*']
 for base_type in atomic_number_dict.keys():
+    un_delete_able_types.append(base_type)
+initial_tree = GBTypingTree(un_delete_able_types=un_delete_able_types)
+for base_type in un_delete_able_types[1:]:
     initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
 
 print('initial tree:')
@@ -23,8 +27,8 @@ mols = []
 
 smiles_subset = list(smiles_list)
 np.random.shuffle(smiles_subset)
-smiles_subset = smiles_subset[:int(len(smiles_list) / 2)]
-print('looking at only {} entries from FreeSolv'.format(len(smiles_subset)))
+smiles_subset = smiles_subset[:int(len(smiles_list) * 0.75)]
+print('looking at {} entries from FreeSolv'.format(len(smiles_subset)))
 n_configuration_samples = 10
 
 for smiles in smiles_subset:
@@ -45,12 +49,15 @@ def remove_unit(unitd_quantity):
 
 from bayes_implicit_solvent.prior_checking import check_no_empty_types
 error_y_trees = []
+
 def log_prob(tree):
     log_prior = check_no_empty_types(tree)
 
     if log_prior > -np.inf:
         try:
-            log_posterior = sum([mol.log_prob(remove_unit(tree.assign_radii(mol.mol))) for mol in mols])
+            # TODO: Parallelize. Note that multiprocessing.Pool won't work here because it doesn't play nice with SwigPy objects
+            log_prob_components = [mol.log_prob(remove_unit(tree.assign_radii(mol.mol))) for mol in mols]
+            log_posterior = sum(log_prob_components)
         except:
             global error_y_trees
             error_y_trees.append(tree)
@@ -71,6 +78,7 @@ def tree_rjmc(initial_tree, n_iterations=1000, fraction_cross_model_proposals=0.
     for _ in trange:
         if np.random.rand() < fraction_cross_model_proposals:
             proposal_dict = trees[-1].sample_create_delete_proposal()
+
         else:
             proposal_dict = trees[-1].sample_radius_perturbation_proposal()
         log_prob_proposal = log_prob(proposal_dict['proposal'])
@@ -99,9 +107,10 @@ def tree_rjmc(initial_tree, n_iterations=1000, fraction_cross_model_proposals=0.
 
 from pickle import dump
 
-n_iterations = 1000
+n_iterations = 15000
+
 result = tree_rjmc(initial_tree, n_iterations=n_iterations)
-with open('bugfixed_tree_rjmc_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(smiles_subset), n_iterations) , 'wb') as f:
+with open('elaborate_tree_rjmc_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(smiles_subset), n_iterations) , 'wb') as f:
     dump(result, f)
 
 with open('error_y_trees.pkl', 'wb') as f:
