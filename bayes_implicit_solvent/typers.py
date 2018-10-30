@@ -58,7 +58,7 @@ class SMARTSTyper():
                 match_atoms = match.GetTargetAtoms()
                 match_patterns = match.GetPatternAtoms()
                 for a, p in zip(match_atoms, match_patterns):
-                    if p == 0:
+                    if p.GetIdx() == 0:
                         match_matrix[a.GetIdx(), i] = True
         return match_matrix
 
