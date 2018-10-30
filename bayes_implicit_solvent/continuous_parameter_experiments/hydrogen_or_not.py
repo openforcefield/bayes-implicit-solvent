@@ -108,7 +108,7 @@ def quarter_freesolv_demo(n_configuration_samples=10, n_parameter_samples=10000)
 
     inds = np.arange(len(smiles_list))
     np.random.shuffle(inds)
-    inds = inds[:int(len(smiles_list) / 2)]
+    inds = inds[:int(len(smiles_list) / 4)]
 
     quarter_smiles = [smiles_list[i] for i in inds]
 
