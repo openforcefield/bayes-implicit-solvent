@@ -51,6 +51,8 @@ def check_no_empty_types(typer):
     # check that
     counts = np.bincount(flat, minlength=N)
     if np.min(counts[1:]) == 0:  # TODO: revisit [1:] slice if we change how wildcard is handled
+        print('empty types found!')
+        print([typer.ordered_nodes[i] for i in range(len(counts)) if counts[i] == 0])
         return -np.inf
     else:
         return 0
