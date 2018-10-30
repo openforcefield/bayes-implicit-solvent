@@ -3,17 +3,19 @@ from bayes_implicit_solvent.typers import GBTypingTree
 typer = GBTypingTree()
 
 # hydrogen types
-typer.add_child('[#1]-[#6X4]', '*')
-typer.add_child('[#1]-[#6X4]-[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X4]')
-typer.add_child('[#1]-[#6X4](-[#7,#8,#9,#16,#17,#35])(-[#7,#8,#9,#16,#17,#35])-[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X4]-[#7,#8,#9,#16,#17,#35]')
-typer.add_child('[#1]-[#6X4]~[*+1,*+2]', '[#1]-[#6X4]')
-typer.add_child('[#1]-[#6X3]', '*')
-typer.add_child('[#1]-[#6X3]~[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X3]')
-typer.add_child('[#1]-[#6X3](~[#7,#8,#9,#16,#17,#35])~[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X3]~[#7,#8,#9,#16,#17,#35]')
-typer.add_child('[#1]-[#6X2]', '*')
-typer.add_child('[#1]-[#7]', '*')
-typer.add_child('[#1]-[#8]', '*')
-typer.add_child('[#1]-[#16]', '*')
+typer.add_child('[#1]', '*')
+typer.add_child('[#1]-[#6X4]', '[#1]')
+#typer.add_child('[#1]-[#6X4]-[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X4]')
+#typer.add_child('[#1]-[#6X4](-[#7,#8,#9,#16,#17,#35])(-[#7,#8,#9,#16,#17,#35])-[#7,#8,#9,#16,#17,#35]',
+#                '[#1]-[#6X4]-[#7,#8,#9,#16,#17,#35]')
+#typer.add_child('[#1]-[#6X4]~[*+1,*+2]', '[#1]-[#6X4]')
+#typer.add_child('[#1]-[#6X3]', '*')
+#typer.add_child('[#1]-[#6X3]~[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X3]')
+#typer.add_child('[#1]-[#6X3](~[#7,#8,#9,#16,#17,#35])~[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X3]~[#7,#8,#9,#16,#17,#35]')
+typer.add_child('[#1]-[#6X2]', '[#1]')
+typer.add_child('[#1]-[#7]', '[#1]')
+typer.add_child('[#1]-[#8]', '[#1]')
+typer.add_child('[#1]-[#16]', '[#1]')
 
 # carbon types
 typer.add_child('[#6]', '*')
@@ -40,7 +42,65 @@ typer.add_child('[#16]', '*')
 # chlorine type
 typer.add_child('[#17]', '*')
 
+# bromine type
+typer.add_child('[#35]', '*')
+
+# iodine type
+typer.add_child('[#53]', '*')
+
 print(typer)
 
 from bayes_implicit_solvent.prior_checking import check_no_empty_types
+
 check_no_empty_types(typer)
+
+import os.path
+
+import mdtraj as md
+import numpy as np
+from pkg_resources import resource_filename
+
+from bayes_implicit_solvent.posterior_sampling import Molecule
+from bayes_implicit_solvent.samplers import sparse_mh
+from bayes_implicit_solvent.solvation_free_energy import smiles_list
+from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
+
+data_path = '../data/'
+
+np.random.seed(0)
+
+inds = np.arange(len(smiles_list))
+np.random.shuffle(inds)
+inds = inds[:int(len(smiles_list) / 10)]
+
+smiles_subset = [smiles_list[i] for i in inds]
+
+n_configuration_samples = 10
+
+mols = []
+
+for smiles in smiles_subset:
+    mol = Molecule(smiles, vacuum_samples=[])
+    path_to_vacuum_samples = resource_filename('bayes_implicit_solvent',
+                                               'vacuum_samples/vacuum_samples_{}.h5'.format(
+                                                   mol.mol_index_in_smiles_list))
+    vacuum_traj = md.load(path_to_vacuum_samples)
+    thinning = int(len(vacuum_traj) / n_configuration_samples)
+    mol.vacuum_traj = mdtraj_to_list_of_unitted_snapshots(vacuum_traj[::thinning])
+    print('thinned vacuum_traj from {} to {}'.format(len(vacuum_traj), len(mol.vacuum_traj)))
+    mols.append(mol)
+
+type_assignments = typer.apply_to_molecule_list([mol.mol for mol in mols])
+radii0 = np.ones(typer.number_of_nodes) * 0.1
+
+
+def log_prob(radii):
+    """Fixed typing scheme, only radii"""
+    return sum([mols[i].log_prob(radii[type_assignments[i]]) for i in range(len(mols))])
+
+
+traj, log_probs, acceptance_fraction = sparse_mh(radii0, log_prob, n_steps=10000, dim_to_perturb=1, stepsize=0.01)
+
+np.savez(os.path.join(data_path,
+                     'smirnoff_type_radii_samples_one_tenth_of_freesolv_n_config={}.npy'.format(
+                         n_configuration_samples)), traj=traj, log_probs=log_probs)
