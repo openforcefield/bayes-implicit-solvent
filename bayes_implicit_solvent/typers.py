@@ -56,8 +56,10 @@ class SMARTSTyper():
         for i in range(len(self.subsearches)):
             for match in self.subsearches[i].Match(mol_, False):
                 match_atoms = match.GetTargetAtoms()
-                for a in match_atoms:
-                    match_matrix[a.GetIdx(), i] = True
+                match_patterns = match.GetPatternAtoms()
+                for a, p in zip(match_atoms, match_patterns):
+                    if p == 0:
+                        match_matrix[a.GetIdx(), i] = True
         return match_matrix
 
     def __repr__(self):
