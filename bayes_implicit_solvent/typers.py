@@ -483,11 +483,23 @@ class GBTypingTree():
                 }
 
     def __repr__(self):
-        # TODO: Less-janky text representation
-        s = 'parent --> child\n'
-        for e in self.G.edges():
-            s += '\t' + e[0] + ' --> ' + e[1] + '\n'
-        return s
+        """Format tree nicely"""
+        depth_dict = nx.shortest_path_length(self.G, source='*')
+        prefix = '|-'
+        lines = []
+        radii = []
+
+        for n in nx.depth_first_search.dfs_preorder_nodes(self.G, '*'):
+            if depth_dict[n] > 0:
+                lines.append('  ' * (depth_dict[n] - 1) + prefix + n)
+            else:
+                lines.append(n)
+            radii.append('(r = {:.5} nm)'.format(str(self.get_radius(n) / unit.nanometer)))
+
+        max_length = max(np.array(list(map(len, lines))) + np.array(list(map(len, radii))))
+        width = max_length + 4
+
+        return '\n'.join([lines[i] + radii[i].rjust(width - len(lines[i])) for i in range(len(lines))])
 
 
 if __name__ == '__main__':
