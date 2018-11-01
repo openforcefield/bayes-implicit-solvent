@@ -20,8 +20,8 @@ bondable_types = list(atomic_number_dict.keys())
 bondable_types.append('[(#7,#8,#9,#16,#17,#35)]')
 
 # atomic_decorators list:
-ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7']
-charge_specifiers = ['+0', '+1', '+2']
+ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'a', 'A']
+charge_specifiers = ['-1', '+0', '+1', '+2']
 hydrogen_count_specifiers = ['H0', 'H1', 'H2', 'H3', 'H4']
 connectivity_specifiers = ['X1', 'X2', 'X3', 'X4']
 
