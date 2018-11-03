@@ -15,10 +15,18 @@ from simtk import unit
 data_path = '../data/'
 
 if __name__ == '__main__':
+    import sys
+
+    try:
+        job_id = int(sys.argv[1])
+        print("Using supplied job_id: ", job_id)
+    except:
+        job_id = np.random.randint(1000)
+        print("No valid job_id supplied! Selecting one at random: ", job_id)
 
 
     # 1. load the dataset, precompute distance matrices
-    np.random.seed(0)
+    np.random.seed(job_id)
 
     inds = np.arange(len(smiles_list))
     np.random.shuffle(inds)
@@ -33,6 +41,12 @@ if __name__ == '__main__':
     expt_uncs = []
 
     n_configuration_samples = 10 # TODO: Since this is cheaper, can probably modify this a bit...
+
+    smiles_subset_fname = os.path.join(data_path,
+                                       'smiles_subset_n_config={}_job_id={}.txt'.format(
+                                           n_configuration_samples, job_id))
+    with open(smiles_subset_fname, 'w') as f:
+        f.writelines(['{}\n'.format(s) for s in smiles_subset])
 
     from bayes_implicit_solvent.utils import get_charges
     from scipy.spatial.distance import pdist, squareform
@@ -54,7 +68,6 @@ if __name__ == '__main__':
         charges.append(get_charges(mol.sys))
         distance_matrices.append([squareform(pdist(snapshot / unit.nanometer)) for snapshot in mol.vacuum_traj])
         mols.append(mol)
-
     # 2. Define a likelihood function, including "type-assignment"
     from autograd import numpy as np
     from autograd.scipy.stats import norm
@@ -75,20 +88,21 @@ if __name__ == '__main__':
     all_elements = [1, 6, 7, 8, 9, 15, 16, 17, 35, 53]
     element_dict = dict(zip(all_elements, list(range(len(all_elements)))))
 
-    def pack(radii, scales):
+    def pack(radii, scales, surface_tension):
         n = len(radii)
-        theta = np.zeros(2 * n)
+        theta = np.zeros(2 * n + 1)
         theta[:n] = radii
         theta[n:2*n] = scales
+        theta[-1] = surface_tension
         return theta
 
     def unpack(theta):
-        n = int(len(theta) / 2)
-        radii, scales = theta[:n], theta[n:2*n]
-        return radii, scales
+        n = int((len(theta) - 1) / 2)
+        radii, scales, surface_tension = theta[:n], theta[n:2*n], theta[-1]
+        return radii, scales, surface_tension
 
     def construct_array(i, theta):
-        radii, scales = unpack(theta)
+        radii, scales, surface_tension = unpack(theta)
 
         mol_radii = np.array([radii[element_dict[element]] for element in elements[i]])
         mol_scales = np.array([scales[element_dict[element]] for element in elements[i]])
@@ -106,23 +120,41 @@ if __name__ == '__main__':
     #from multiprocessing import Pool
     #n_processes = 4
     #pool = Pool(n_processes)
-    def log_prob_component(i, theta):
-        radii, scales = construct_array(i, theta)
-        if min(np.min(radii), np.min(scales)) < 0.001:
-            print('out of bounds!')
-            return -np.inf
-        W_F = np.array([compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges[i]) for distance_matrix in
-                        distance_matrices[i]])
-        w_F = W_F * kj_mol_to_kT
-        pred_free_energy = one_sided_exp(w_F)
-        #return student_t.logpdf(pred_free_energy, loc=expt_means[i],
-        #                scale=expt_uncs[i]**2,
-        #                df=7)
-        return norm.logpdf(pred_free_energy, loc=expt_means[i], scale=expt_uncs[i] ** 2)
-
+    #def log_prob_component(i, theta):
+    #    radii, scales = construct_array(i, theta)
+    #    if min(np.min(radii), np.min(scales)) < 0.001:
+    #        print('out of bounds!')
+    #        return -np.inf
+    #    W_F = np.array([compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges[i]) for distance_matrix in
+    #                    distance_matrices[i]])
+    #    w_F = W_F * kj_mol_to_kT
+    #    pred_free_energy = one_sided_exp(w_F)
+    #    #return student_t.logpdf(pred_free_energy, loc=expt_means[i],
+    #    #                scale=expt_uncs[i]**2,
+    #    #                df=7)
+    #    return norm.logpdf(pred_free_energy, loc=expt_means[i], scale=expt_uncs[i] ** 2)
 
     def log_prob(theta):
-        return sum(map(lambda i: log_prob_component(i, theta), range(len(mols))))
+        _, _, surface_tension = unpack(theta)
+        mol_radii, mol_scales = construct_arrays(theta)
+        if min(theta[:-1]) < 0.001 or max(theta[:-1]) > 2:
+            print('out of bounds!')
+            return -np.inf
+        logp = 0
+        for i in range(len(mols)):
+            radii = mol_radii[i]
+            scales = mol_scales[i]
+            W_F = np.array([compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges[i], surface_tension=surface_tension) for distance_matrix in
+                            distance_matrices[i]])
+            w_F = W_F * kj_mol_to_kT
+            pred_free_energy = one_sided_exp(w_F)
+            logp += student_t.logpdf(pred_free_energy, loc=expt_means[i],
+                            scale=expt_uncs[i]**2,
+                            df=7)
+            #logp += norm.logpdf(pred_free_energy, loc=expt_means[i], scale=expt_uncs[i] ** 2)
+        return logp
+    #def log_prob(theta):
+    #    return sum(map(lambda i: log_prob_component(i, theta), range(len(mols))))
 
     #def parallel_log_prob(theta):
     #    return sum(pool.map(lambda i: log_prob_component(i, theta), range(len(mols))))
@@ -132,24 +164,30 @@ if __name__ == '__main__':
     #    return sum(pool.map(lambda i: grad(log_prob_component(i, theta), argnum=1)(theta), range(len(mols))))
 
     # 3. Take gradient of likelihood function
-    grad_log_prob = grad(log_prob)
+
 
     # 4. Minimize for a few steps
     initial_radii = np.ones(len(all_elements)) * 0.12
     initial_scales = np.ones(len(all_elements)) * 0.85
+    initial_surface_tension = 28.3919551
 
-    theta0 = pack(initial_radii, initial_scales)
-    print('initial theta: ', theta0)
+    theta0 = pack(initial_radii, initial_scales, initial_surface_tension)
+    print('initial theta', theta0)
+    initial_log_prob = log_prob(theta0)
+    print('initial log prob', log_prob(theta0))
+
+    grad_log_prob = grad(log_prob)
+
     print('initial gradient norm = {}'.format(np.linalg.norm(grad_log_prob(theta0))))
 
     minimized_theta_fname = os.path.join(data_path,
-                         'elemental_types_l-bfgs_freesolv_n_config={}.npy'.format(
-                             n_configuration_samples))
+                         'elemental_types_l-bfgs_freesolv_n_config={}_job_id={}.npy'.format(
+                             n_configuration_samples, job_id))
 
     print('minimizing...')
     from scipy.optimize import minimize
     loss = lambda theta: -log_prob(theta)
-    bounds = [(0.001, 2.0)] * len(theta0)
+    bounds = [(0.001, 2.0)] * len(theta0[:-1]) + [(-np.inf, np.inf)]
     result = minimize(loss, theta0,
                       jac=grad(loss),
                       method='L-BFGS-B',
@@ -164,10 +202,10 @@ if __name__ == '__main__':
 
     # 5. Run MALA
 
-    stepsize = 1e-6
-    n_steps = 1000
-    traj, log_probs, grads, acceptance_probabilities = MALA(theta1, log_prob, grad_log_prob, n_steps=1000, stepsize=stepsize)
+    stepsize = 1e-8
+    n_steps = 10000
+    traj, log_probs, grads, acceptance_probabilities = MALA(theta1, log_prob, grad_log_prob, n_steps=n_steps, stepsize=stepsize)
 
     np.save(os.path.join(data_path,
-                         'elemental_types_mala_freesolv_n_config={}.npy'.format(
-                             n_configuration_samples)), traj)
+                         'elemental_types_mala_freesolv_n_config={}_job_id={}.npy'.format(
+                             n_configuration_samples, job_id)), traj)
