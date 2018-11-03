@@ -26,6 +26,10 @@ def get_nb_force(system):
             return f
     raise (Exception('No nonbonded force found'))
 
+def get_charges(system):
+    """Find and return the partial charges of all particles in the system"""
+    nb_force = get_nb_force(system)
+    return np.array([nb_force.getParticleParameters(i)[0] / unit.elementary_charge for i in range(nb_force.getNumParticles())])
 
 def apply_radii_to_GB_force(radii, gb_force):
     """Given an array of radii, of length = gb_force.getNumParameters(),
