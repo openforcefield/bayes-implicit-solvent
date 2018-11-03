@@ -163,7 +163,6 @@ if __name__ == '__main__':
 
     # 3. Take gradient of likelihood function
 
-
     # 4. Minimize for a few steps
     initial_radii = np.ones(len(all_elements)) * 0.12
     initial_scales = np.ones(len(all_elements)) * 0.85
@@ -190,7 +189,7 @@ if __name__ == '__main__':
                       method='L-BFGS-B',
                       bounds=bounds,
                       options={'disp': True,
-                               'maxiter': 10})
+                               'maxiter': 5})
 
     theta1 = result.x
     np.save(minimized_theta_fname, theta1)
@@ -199,10 +198,11 @@ if __name__ == '__main__':
 
     # 5. Run MALA
 
-    stepsize = 1e-7
-    n_steps = 10000
-    traj, log_probs, grads, acceptance_probabilities = MALA(theta1, log_prob, grad_log_prob, n_steps=n_steps, stepsize=stepsize)
+    stepsize = 1e-8
+    n_steps = 2000
+    traj, log_probs, grads, acceptance_probabilities, stepsizes = MALA(theta1, log_prob, grad_log_prob, n_steps=n_steps, stepsize=stepsize, adapt_stepsize=True, )
 
-    np.save(os.path.join(data_path,
-                         'elemental_types_mala_freesolv_n_config={}_job_id={}.npy'.format(
-                             n_configuration_samples, job_id)), traj)
+    np.savez(os.path.join(data_path,
+                         'elemental_types_mala_freesolv_n_config={}_job_id={}.npz'.format(
+                             n_configuration_samples, job_id)),
+             traj=traj, grads=grads, acceptance_probabilities=acceptance_probabilities, stepsizes=stepsizes)
