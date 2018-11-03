@@ -69,7 +69,7 @@ def log_prob(tree):
         return log_prior
 
 
-def tree_rjmc(initial_tree, n_iterations=1000, fraction_cross_model_proposals=0.05):
+def tree_rjmc(initial_tree, n_iterations=1000, fraction_cross_model_proposals=0.25):
     trees = [initial_tree]
     log_probs = [log_prob(trees[-1])]
     log_acceptance_probabilities = []
@@ -107,7 +107,7 @@ def tree_rjmc(initial_tree, n_iterations=1000, fraction_cross_model_proposals=0.
 
 from pickle import dump
 
-n_iterations = 15000
+n_iterations = 200000
 
 result = tree_rjmc(initial_tree, n_iterations=n_iterations)
 with open('elaborate_tree_rjmc_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(smiles_subset), n_iterations) , 'wb') as f:
