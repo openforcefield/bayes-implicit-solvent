@@ -13,6 +13,7 @@ from bayes_implicit_solvent.solvation_free_energy import smiles_list
 from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
 from simtk import unit
 data_path = '../data/'
+gaussian_ll = True
 
 if __name__ == '__main__':
     import sys
@@ -42,9 +43,11 @@ if __name__ == '__main__':
 
     n_configuration_samples = 10 # TODO: Since this is cheaper, can probably modify this a bit...
 
+    name = 'n_config={}_job_id={}'.format(n_configuration_samples, job_id)
+    if gaussian_ll:
+        name = name + '_gaussian_ll'
     smiles_subset_fname = os.path.join(data_path,
-                                       'smiles_subset_n_config={}_job_id={}.txt'.format(
-                                           n_configuration_samples, job_id))
+                                       'smiles_subset_{}.txt'.format(name))
     with open(smiles_subset_fname, 'w') as f:
         f.writelines(['{}\n'.format(s) for s in smiles_subset])
 
@@ -146,10 +149,13 @@ if __name__ == '__main__':
                             distance_matrices[i]])
             w_F = W_F * kj_mol_to_kT
             pred_free_energy = one_sided_exp(w_F)
-            logp += student_t.logpdf(pred_free_energy, loc=expt_means[i],
-                            scale=expt_uncs[i]**2,
-                            df=7)
-            #logp += norm.logpdf(pred_free_energy, loc=expt_means[i], scale=expt_uncs[i] ** 2)
+
+            if gaussian_ll:
+                logp += norm.logpdf(pred_free_energy, loc=expt_means[i], scale=expt_uncs[i] ** 2)
+            else:
+                logp += student_t.logpdf(pred_free_energy, loc=expt_means[i],
+                                         scale=expt_uncs[i] ** 2,
+                                         df=7)
         return logp
     #def log_prob(theta):
     #    return sum(map(lambda i: log_prob_component(i, theta), range(len(mols))))
@@ -177,8 +183,8 @@ if __name__ == '__main__':
     print('initial gradient norm = {}'.format(np.linalg.norm(grad_log_prob(theta0))))
 
     minimized_theta_fname = os.path.join(data_path,
-                         'elemental_types_l-bfgs_freesolv_n_config={}_job_id={}.npy'.format(
-                             n_configuration_samples, job_id))
+                         'elemental_types_l-bfgs_freesolv_{}.npy'.format(
+                             name))
 
     print('minimizing...')
     from scipy.optimize import minimize
@@ -203,6 +209,6 @@ if __name__ == '__main__':
     traj, log_probs, grads, acceptance_probabilities, stepsizes = MALA(theta1, log_prob, grad_log_prob, n_steps=n_steps, stepsize=stepsize, adapt_stepsize=True, )
 
     np.savez(os.path.join(data_path,
-                         'elemental_types_mala_freesolv_n_config={}_job_id={}.npz'.format(
-                             n_configuration_samples, job_id)),
+                         'elemental_types_mala_freesolv_{}.npz'.format(
+                             name)),
              traj=traj, grads=grads, acceptance_probabilities=acceptance_probabilities, stepsizes=stepsizes)
