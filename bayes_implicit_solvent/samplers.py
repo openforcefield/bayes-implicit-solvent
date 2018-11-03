@@ -181,7 +181,7 @@ def langevin(x0, v0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01
 
 
 def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01):
-    """
+    """Metropolis-Adjusted Langevin Algorithm.
 
     Parameters
     ----------
@@ -195,8 +195,6 @@ def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01):
         number of Langevin steps
     stepsize : float > 0
         finite timestep parameter
-    collision_rate : float > 0
-        controls the rate of interaction with the heat bath
 
     Returns
     -------
