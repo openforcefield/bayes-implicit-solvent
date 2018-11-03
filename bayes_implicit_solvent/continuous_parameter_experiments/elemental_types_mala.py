@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
         elements.append(np.array([a.element.atomic_number for a in mol.top.atoms()]))
         charges.append(get_charges(mol.sys))
-        distance_matrices.append([squareform(pdist(snapshot)) for snapshot in vacuum_traj.xyz])
+        distance_matrices.append([squareform(pdist(snapshot)) for snapshot in mol.vacuum_traj])
         mols.append(mol)
 
     # 2. Define a likelihood function, including "type-assignment"
