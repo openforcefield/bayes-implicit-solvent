@@ -1,3 +1,4 @@
+import numpy as np
 from openeye import oechem
 from simtk import unit
 
@@ -18,7 +19,7 @@ def get_gbsa_force(system):
 
 
 def get_nb_force(system):
-    """Find and return the first force that contains 'NonbondedForce in its name"""
+    """Find and return the first force that contains 'NonbondedForce' in its name"""
     forces = system.getForces()
     for f in forces:
         if 'NonbondedForce' in f.__class__.__name__:
@@ -31,7 +32,7 @@ def apply_radii_to_GB_force(radii, gb_force):
     overwrite the per-particle radii parameters of gb_force.
     Retain charges, set scalingFactors to 1.0.
     """
-    # TODO: Don't reset scalingFactor
+    # TODO: Don't reset scalingFactor to 1.0.
 
     for i in range(len(radii)):
         charge = gb_force.getParticleParameters(i)[0]
@@ -59,3 +60,39 @@ def remove_top_right_spines(ax):
     """Aesthetic tweak of matplotlib axes"""
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
+
+
+def get_substructure_matches(mol, subsearch):
+    mol_ = oechem.OEMol(mol)
+    n_atoms = len(list(mol_.GetAtoms()))
+    matches = np.zeros(n_atoms, dtype=bool)
+
+    for match in subsearch.Match(mol_, False):
+        match_atoms = match.GetTargetAtoms()
+        match_patterns = match.GetPatternAtoms()
+        for a, p in zip(match_atoms, match_patterns):
+            if p.GetIdx() == 0:
+                matches[a.GetIdx()] = True
+    return matches
+
+
+subsearch_cache = dict()
+number_of_cache_misses = 0
+number_of_cache_accesses = 0
+
+
+def cached_substructure_matches(mol, subsearch_string):
+    global number_of_cache_accesses
+    global number_of_cache_misses
+    global subsearch_cache
+
+    number_of_cache_accesses += 1
+
+    arg_tuple = (mol, subsearch_string)
+
+    if arg_tuple not in subsearch_cache:
+        subsearch = smarts_to_subsearch(subsearch_string)
+        subsearch_cache[arg_tuple] = get_substructure_matches(mol, subsearch)
+        number_of_cache_misses += 1
+
+    return subsearch_cache[arg_tuple]

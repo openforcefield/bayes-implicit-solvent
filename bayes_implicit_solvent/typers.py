@@ -151,6 +151,8 @@ def sample_smirks_elaboration_proposal(initial_smirks):
     proposal_dict['log_prob_forward_over_reverse'] += log_prob_pick_elaborator
     return proposal_dict
 
+from bayes_implicit_solvent.utils import cached_substructure_matches
+
 class SMARTSTyper():
     def __init__(self, smarts_iter):
         """Base class for typing schemes that use SMARTS.
@@ -179,18 +181,13 @@ class SMARTSTyper():
         -------
         hits : binary array of shape (n_atoms, len(self.subsearches))
         """
-        mol_ = oechem.OEMol(oemol)
-        n_atoms = len(list(mol_.GetAtoms()))
+        n_atoms = len(list(oemol.GetAtoms()))
 
-        match_matrix = np.zeros((n_atoms, len(self.subsearches)), dtype=bool)
+        match_matrix = np.zeros((n_atoms, len(self.smarts_list)), dtype=bool)
 
         for i in range(len(self.subsearches)):
-            for match in self.subsearches[i].Match(mol_, False):
-                match_atoms = match.GetTargetAtoms()
-                match_patterns = match.GetPatternAtoms()
-                for a, p in zip(match_atoms, match_patterns):
-                    if p.GetIdx() == 0:
-                        match_matrix[a.GetIdx(), i] = True
+            match_matrix[:, i] = cached_substructure_matches(oemol, self.smarts_list[i])
+
         return match_matrix
 
     def __repr__(self):
@@ -251,11 +248,11 @@ class GBTypingTree():
         # initialize wildcard root node
         self.G.add_node('*', **self.default_parameters)
         self.sample_smirks_elaboration_proposal = sample_smirks_elaboration_proposal
+        self.update_node_order()
 
-    @property
-    def ordered_nodes(self):
+    def update_node_order(self):
         """Order the nodes by a breadth-first search"""
-        return list(nx.breadth_first_search.bfs_tree(self.G, '*').nodes())
+        self.ordered_nodes = list(nx.breadth_first_search.bfs_tree(self.G, '*').nodes())
 
     def apply_to_molecule(self, molecule):
         """Assign types based on last-match-wins during breadth-first search
@@ -349,6 +346,7 @@ class GBTypingTree():
         """Create a new type, and add a directed edge from parent to child"""
         self.G.add_node(child_smirks, **self.default_parameters)
         self.G.add_edge(parent_smirks, child_smirks)
+        self.update_node_order()
 
     def get_parent_type(self, smirks):
         """Get the parent of a given type.
@@ -371,6 +369,8 @@ class GBTypingTree():
                 raise (RuntimeError('Attempted to delete a non-leaf node!'))
         else:
             self.G.remove_node(smirks)
+
+        self.update_node_order()
 
     def get_radius(self, smirks):
         """Get the value of the "radius" property for the smirks type"""

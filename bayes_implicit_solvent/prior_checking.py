@@ -32,7 +32,6 @@ def cache_based_on_discrete_typing_scheme(function):
         discrete_typer = tuple(typer.G.edges())
 
         if discrete_typer not in cache:
-            print("looking at a scheme that's not in the cache! updating...")
             cache[discrete_typer] = function(typer)
 
         return cache[discrete_typer]
@@ -48,11 +47,11 @@ def check_no_empty_types(typer):
     flat = np.hstack(assigned_types)
     N = typer.number_of_nodes
 
-    # check that
+    # check that no type is unused
     counts = np.bincount(flat, minlength=N)
     if np.min(counts[1:]) == 0:  # TODO: revisit [1:] slice if we change how wildcard is handled
-        print('empty types found!')
-        print([typer.ordered_nodes[i] for i in range(len(counts)) if counts[i] == 0])
+        #print('empty types found!')
+        #print([typer.ordered_nodes[i] for i in range(len(counts)) if counts[i] == 0])
         return -np.inf
     else:
         return 0
