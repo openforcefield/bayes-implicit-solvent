@@ -12,6 +12,14 @@ requirements:
   build:
     - python
     - setuptools
+    - networkx
+    - tqdm
+    - numpy
+    - matplotlib
+    - openeye
+    - openmmtools
+    - autograd
+    - scipy
 
   run:
     - python
