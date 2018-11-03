@@ -11,7 +11,7 @@ from bayes_implicit_solvent.posterior_sampling import Molecule
 from bayes_implicit_solvent.samplers import MALA
 from bayes_implicit_solvent.solvation_free_energy import smiles_list
 from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
-
+from simtk import unit
 data_path = '../data/'
 
 if __name__ == '__main__':
@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
         elements.append(np.array([a.element.atomic_number for a in mol.top.atoms()]))
         charges.append(get_charges(mol.sys))
-        distance_matrices.append([squareform(pdist(snapshot)) for snapshot in mol.vacuum_traj])
+        distance_matrices.append([squareform(pdist(snapshot / unit.nanometer)) for snapshot in mol.vacuum_traj])
         mols.append(mol)
 
     # 2. Define a likelihood function, including "type-assignment"
