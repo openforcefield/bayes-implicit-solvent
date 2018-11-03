@@ -88,21 +88,20 @@ if __name__ == '__main__':
     all_elements = [1, 6, 7, 8, 9, 15, 16, 17, 35, 53]
     element_dict = dict(zip(all_elements, list(range(len(all_elements)))))
 
-    def pack(radii, scales, surface_tension):
+    def pack(radii, scales):
         n = len(radii)
-        theta = np.zeros(2 * n + 1)
+        theta = np.zeros(2 * n)
         theta[:n] = radii
         theta[n:2*n] = scales
-        theta[-1] = surface_tension
         return theta
 
     def unpack(theta):
-        n = int((len(theta) - 1) / 2)
-        radii, scales, surface_tension = theta[:n], theta[n:2*n], theta[-1]
-        return radii, scales, surface_tension
+        n = int((len(theta) ) / 2)
+        radii, scales = theta[:n], theta[n:2*n]
+        return radii, scales
 
     def construct_array(i, theta):
-        radii, scales, surface_tension = unpack(theta)
+        radii, scales = unpack(theta)
 
         mol_radii = np.array([radii[element_dict[element]] for element in elements[i]])
         mol_scales = np.array([scales[element_dict[element]] for element in elements[i]])
@@ -135,7 +134,6 @@ if __name__ == '__main__':
     #    return norm.logpdf(pred_free_energy, loc=expt_means[i], scale=expt_uncs[i] ** 2)
 
     def log_prob(theta):
-        _, _, surface_tension = unpack(theta)
         mol_radii, mol_scales = construct_arrays(theta)
         if min(theta[:-1]) < 0.001 or max(theta[:-1]) > 2:
             print('out of bounds!')
@@ -144,7 +142,7 @@ if __name__ == '__main__':
         for i in range(len(mols)):
             radii = mol_radii[i]
             scales = mol_scales[i]
-            W_F = np.array([compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges[i], surface_tension=surface_tension) for distance_matrix in
+            W_F = np.array([compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges[i]) for distance_matrix in
                             distance_matrices[i]])
             w_F = W_F * kj_mol_to_kT
             pred_free_energy = one_sided_exp(w_F)
@@ -169,9 +167,8 @@ if __name__ == '__main__':
     # 4. Minimize for a few steps
     initial_radii = np.ones(len(all_elements)) * 0.12
     initial_scales = np.ones(len(all_elements)) * 0.85
-    initial_surface_tension = 28.3919551
 
-    theta0 = pack(initial_radii, initial_scales, initial_surface_tension)
+    theta0 = pack(initial_radii, initial_scales)
     print('initial theta', theta0)
     initial_log_prob = log_prob(theta0)
     print('initial log prob', log_prob(theta0))
@@ -202,7 +199,7 @@ if __name__ == '__main__':
 
     # 5. Run MALA
 
-    stepsize = 1e-8
+    stepsize = 1e-7
     n_steps = 10000
     traj, log_probs, grads, acceptance_probabilities = MALA(theta1, log_prob, grad_log_prob, n_steps=n_steps, stepsize=stepsize)
 
