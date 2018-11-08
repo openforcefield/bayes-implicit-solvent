@@ -27,8 +27,10 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
         initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
 
     from math import factorial
+    n_trees_at_length = lambda length : int(factorial(len(specifiers)) / factorial(len(specifiers) - length))
 
-    number_of_trees_at_each_length = list(map(factorial, range(len(specifiers) + 1)))
+    number_of_trees_at_each_length = list(map(n_trees_at_length, range(len(specifiers) + 1)))
+    print('number of possible distinct discrete trees at each length', list(zip(range(len(number_of_trees_at_each_length)), number_of_trees_at_each_length)))
 
     number_of_possibilities = sum(number_of_trees_at_each_length)
     print('number of possibilities:', number_of_possibilities)
