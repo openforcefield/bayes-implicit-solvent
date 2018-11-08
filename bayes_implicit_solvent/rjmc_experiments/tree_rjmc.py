@@ -68,48 +68,12 @@ def log_prob(tree):
     else:
         return log_prior
 
-
-def tree_rjmc(initial_tree, n_iterations=1000, fraction_cross_model_proposals=0.25):
-    trees = [initial_tree]
-    log_probs = [log_prob(trees[-1])]
-    log_acceptance_probabilities = []
-
-    trange = tqdm(range(n_iterations))
-    for _ in trange:
-        if np.random.rand() < fraction_cross_model_proposals:
-            proposal_dict = trees[-1].sample_create_delete_proposal()
-
-        else:
-            proposal_dict = trees[-1].sample_radius_perturbation_proposal()
-        log_prob_proposal = log_prob(proposal_dict['proposal'])
-        log_p_new_over_old = log_prob_proposal - log_probs[-1]
-
-        log_acceptance_probability = min(0.0, log_p_new_over_old - proposal_dict['log_prob_forward_over_reverse'])
-        log_acceptance_probabilities.append(log_acceptance_probability)
-        acceptance_probability = min(1.0, np.exp(log_acceptance_probability))
-        if np.random.rand() < acceptance_probability:
-            trees.append(proposal_dict['proposal'])
-            log_probs.append(log_prob_proposal)
-        else:
-            trees.append(trees[-1])
-            log_probs.append(log_probs[-1])
-
-        trange.set_postfix({'avg. accept. prob.': np.mean(np.exp(log_acceptance_probabilities)),
-                            'log posterior': log_probs[-1],
-                            '# GB types': trees[-1].number_of_nodes,
-                            })
-
-    return {'traj': trees,
-            'log_probs': np.array(log_probs),
-            'log_acceptance_probabilities': np.array(log_acceptance_probabilities)
-            }
-
-
+from bayes_implicit_solvent.samplers import tree_rjmc
 from pickle import dump
 
 n_iterations = 200000
 
-result = tree_rjmc(initial_tree, n_iterations=n_iterations)
+result = tree_rjmc(initial_tree, log_prob, n_iterations=n_iterations)
 with open('elaborate_tree_rjmc_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(smiles_subset), n_iterations) , 'wb') as f:
     dump(result, f)
 

@@ -292,3 +292,39 @@ def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01,
     return np.array(traj), np.array(log_probs), np.array(grads), np.array(acceptance_probs), np.array(stepsizes)
 
 # TODO: Automatically adjust MALA stepsize
+
+
+def tree_rjmc(initial_tree, log_prob_func, n_iterations=1000, fraction_cross_model_proposals=0.25):
+    trees = [initial_tree]
+    log_probs = [log_prob_func(trees[-1])]
+    log_acceptance_probabilities = []
+
+    trange = tqdm(range(n_iterations))
+    for _ in trange:
+        if np.random.rand() < fraction_cross_model_proposals:
+            proposal_dict = trees[-1].sample_create_delete_proposal()
+
+        else:
+            proposal_dict = trees[-1].sample_radius_perturbation_proposal()
+        log_prob_proposal = log_prob_func(proposal_dict['proposal'])
+        log_p_new_over_old = log_prob_proposal - log_probs[-1]
+
+        log_acceptance_probability = min(0.0, log_p_new_over_old - proposal_dict['log_prob_forward_over_reverse'])
+        log_acceptance_probabilities.append(log_acceptance_probability)
+        acceptance_probability = min(1.0, np.exp(log_acceptance_probability))
+        if np.random.rand() < acceptance_probability:
+            trees.append(proposal_dict['proposal'])
+            log_probs.append(log_prob_proposal)
+        else:
+            trees.append(trees[-1])
+            log_probs.append(log_probs[-1])
+
+        trange.set_postfix({'avg. accept. prob.': np.mean(np.exp(log_acceptance_probabilities)),
+                            'log posterior': log_probs[-1],
+                            '# GB types': trees[-1].number_of_nodes,
+                            })
+
+    return {'traj': trees,
+            'log_probs': np.array(log_probs),
+            'log_acceptance_probabilities': np.array(log_acceptance_probabilities)
+            }

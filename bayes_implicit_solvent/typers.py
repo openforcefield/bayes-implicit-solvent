@@ -2,154 +2,158 @@ from copy import deepcopy
 
 import networkx as nx
 import numpy as np
-from openeye import oechem
 from scipy.stats import norm
 from simtk import unit
 
 from bayes_implicit_solvent.smarts import atomic_number_dict
 from bayes_implicit_solvent.utils import smarts_to_subsearch
 
-print('using the following decorators:')
+class DiscreteProposal():
+    def sample(self, initial):
+        raise(NotImplementedError())
 
-bond_specifiers = ['@', '-', '#', '=', ':']
-print('bond_specifiers (replace "~" bonds)\n\t', bond_specifiers)
+    def log_prob_forward(self, initial, proposed):
+        raise(NotImplementedError())
 
-bondable_types = list(atomic_number_dict.keys())
+    def log_prob_reverse(self, initial, proposed):
+        """Only one way to go backwards"""
+        number_of_ways_to_go_backward = 1
+        return - np.log(number_of_ways_to_go_backward)
 
-# this is a group that appears a 9 times in the smirnoff99frosst nonbonded definitions for hydrogens
-bondable_types.append('[(#7,#8,#9,#16,#17,#35)]')
+    def log_prob_forward_over_reverse(self, initial, proposed):
+        return self.log_prob_forward(initial, proposed) - self.log_prob_reverse(initial, proposed)
 
-# atomic_decorators list:
-ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'a', 'A']
-charge_specifiers = ['-1', '+0', '+1', '+2']
-hydrogen_count_specifiers = ['H0', 'H1', 'H2', 'H3', 'H4']
-connectivity_specifiers = ['X1', 'X2', 'X3', 'X4']
+    def __call__(self, initial):
+        return self.sample(initial)
 
-all_specifier_lists = [
-    ring_specifiers,
-    charge_specifiers,
-    hydrogen_count_specifiers,
-    connectivity_specifiers,
-]
+class BondProposal(DiscreteProposal):
+    def __init__(self, bondable_types):
+        self.bondable_types = bondable_types
+        print('bondable_types (~\'d onto atoms)\n\t', self.bondable_types)
 
-from itertools import chain
-atomic_specifiers = list(chain(*all_specifier_lists))
+    def log_prob_forward(self, initial_smirks, proposed_smirks=None):
+        """In this case, have an equal chance of picking any possible proposed smirks"""
+        closing_bracket_indices = [i for i in range(len(initial_smirks)) if initial_smirks[i] == ']']
+        n_atoms = len(closing_bracket_indices)
+        number_of_ways_to_go_forward = n_atoms * len(self.bondable_types)
+        return - np.log(number_of_ways_to_go_forward)
 
-print('atomic_specifiers (&\'d into atom definitions)\n\t', atomic_specifiers)
+    def sample(self, initial_smirks):
+        """Find square brackets, and propose to any-bond it to any element of bondable_types
 
-bondable_types += ['[{}]'.format(s) for s in atomic_specifiers]
+        [#1] --> [#1]~[#8]
+        [#1] --> [#6]~[-1]
 
-print('bondable_types (~\'d onto atoms)\n\t', bondable_types)
+        # TODO: Also allow multiple bond specification
+        # TODO: e.g. '[#7]-[#6]' --> '[#7]([#1])-[#6]'
+        (Although in that example we could also specify this by (!H0) I guess
+        """
+        closing_bracket_indices = [i for i in range(len(initial_smirks)) if initial_smirks[i] == ']']
 
-all_decorators = bondable_types + atomic_specifiers + bond_specifiers
+        n_atoms = len(closing_bracket_indices)
 
-def sample_bond_proposal(initial_smirks):
-    """Find square brackets, and propose to any-bond it to any element of bondable_types
+        if n_atoms == 0:
+            raise(RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
+        ind_to_insert = np.random.choice(closing_bracket_indices) + 1
 
-    [#1] --> [#1]~[#8]
-    [#1] --> [#6]~[-1]
+        decorator = '~{}'.format(np.random.choice(bondable_types))
 
-    # TODO: Also allow multiple bond specification
-    # TODO: e.g. '[#7]-[#6]' --> '[#7]([#1])-[#6]'
-    (Although in that example we could also specify this by (!H0) I guess
-    """
-    closing_bracket_indices = [i for i in range(len(initial_smirks)) if initial_smirks[i] == ']']
+        proposal_smirks = initial_smirks[:ind_to_insert] + decorator + initial_smirks[ind_to_insert:]
 
-    n_atoms = len(closing_bracket_indices)
-
-    if n_atoms == 0:
-        raise(RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
-    ind_to_insert = np.random.choice(closing_bracket_indices) + 1
-
-    decorator = '~{}'.format(np.random.choice(bondable_types))
-
-    proposal_smirks = initial_smirks[:ind_to_insert] + decorator + initial_smirks[ind_to_insert:]
-
-    number_of_ways_to_go_forward = n_atoms * len(bondable_types)
-    number_of_ways_to_go_backward = 1
-
-    log_prob_forward = - np.log(number_of_ways_to_go_forward)
-    log_prob_reverse = - np.log(number_of_ways_to_go_backward)
-
-    log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
-    return {
-        'proposal': proposal_smirks,
-        'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
-    }
-
-def sample_atom_specification_proposal(initial_smirks):
-    """Look inside square brackets, and try &'ing the current definition with something"""
-
-    closing_bracket_indices = [i for i in range(len(initial_smirks)) if initial_smirks[i] == ']']
-
-    n_atoms = len(closing_bracket_indices)
-
-    if n_atoms == 0:
-        raise(RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
-    ind_to_insert = np.random.choice(closing_bracket_indices)
-
-    decorator = '&{}'.format(np.random.choice(atomic_specifiers))
-
-    proposal_smirks = initial_smirks[:ind_to_insert] + decorator + initial_smirks[ind_to_insert:]
-
-    number_of_ways_to_go_forward = n_atoms * len(atomic_specifiers)
-    number_of_ways_to_go_backward = 1
-
-    log_prob_forward = - np.log(number_of_ways_to_go_forward)
-    log_prob_reverse = - np.log(number_of_ways_to_go_backward)
-
-    log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
-    return {
-        'proposal': proposal_smirks,
-        'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
-    }
-
-def sample_bond_specification_proposal(initial_smirks):
-    """Look at unspecified bonds, randomly replace them with one of the bond specifiers"""
-    if '~' not in initial_smirks:
-        # contained no any-bonds
-        proposal_smirks = initial_smirks
-        number_of_ways_to_go_forward = 0 # calling -np.log(0) clutters up the terminal a bit
-        log_prob_forward = - np.inf
-    else:
-        components = initial_smirks.split('~')
-        bonds = ['~'] * (len(components) - 1)
-        bonds[np.random.randint(len(bonds))] = np.random.choice(bond_specifiers)
-
-        # components[0] + bonds[0] + components[1] + bonds[1] + ... + components[-1]
-        s = []
-        for i in range(len(bonds)):
-            s.append(components[i])
-            s.append(bonds[i])
-        s.append(components[-1])
-        proposal_smirks = ''.join(s)
-        number_of_ways_to_go_forward = len(bond_specifiers) * len(bonds)
-        log_prob_forward = - np.log(number_of_ways_to_go_forward)
-
-    number_of_ways_to_go_backward = 1
+        return {
+            'proposal': proposal_smirks,
+            'log_prob_forward_over_reverse': self.log_prob_forward_over_reverse(initial_smirks, proposed_smirks),
+        }
 
 
-    log_prob_reverse = - np.log(number_of_ways_to_go_backward)
+class AtomSpecificationProposal(DiscreteProposal):
+    def __init__(self, atomic_specifiers):
+        self.atomic_specifiers = atomic_specifiers
+        print('atomic_specifiers (&\'d into atom definitions)\n\t', self.atomic_specifiers)
 
-    log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
-    return {
-        'proposal': proposal_smirks,
-        'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
-    }
+    def log_prob_forward(self, initial_smirks, proposed_smirks=None):
+        """In this case, have an equal chance of picking any possible proposed smirks"""
+        closing_bracket_indices = [i for i in range(len(initial_smirks)) if initial_smirks[i] == ']']
+        n_atoms = len(closing_bracket_indices)
+        number_of_ways_to_go_forward = n_atoms * len(self.atomic_specifiers)
+        return - np.log(number_of_ways_to_go_forward)
 
-smirks_elaborators = [
-    sample_bond_proposal,
-    sample_atom_specification_proposal,
-    sample_bond_specification_proposal,
-]
+    def sample(self, initial_smirks):
+        """Look inside square brackets, and try &'ing the current definition with something"""
 
-def sample_smirks_elaboration_proposal(initial_smirks):
-    """Pick one of the smirks_elaborators at random, and sample its proposal"""
-    log_prob_pick_elaborator = - np.log(len(smirks_elaborators))
-    proposal_dict = np.random.choice(smirks_elaborators)(initial_smirks)
-    #print('smirks proposal: {} --> {}'.format(initial_smirks, proposal_dict['proposal']))
-    proposal_dict['log_prob_forward_over_reverse'] += log_prob_pick_elaborator
-    return proposal_dict
+        closing_bracket_indices = [i for i in range(len(initial_smirks)) if initial_smirks[i] == ']']
+
+        n_atoms = len(closing_bracket_indices)
+
+        if n_atoms == 0:
+            raise(RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
+        ind_to_insert = np.random.choice(closing_bracket_indices)
+
+        decorator = '&{}'.format(np.random.choice(self.atomic_specifiers))
+
+        proposal_smirks = initial_smirks[:ind_to_insert] + decorator + initial_smirks[ind_to_insert:]
+
+        return {
+            'proposal': proposal_smirks,
+            'log_prob_forward_over_reverse': self.log_prob_forward_over_reverse(initial_smirks, proposal_smirks),
+        }
+
+class BondSpecificationProposal(DiscreteProposal):
+    def __init__(self, bond_specifiers):
+        self.bond_specifiers = bond_specifiers
+        print('bond_specifiers (replace "~" bonds)\n\t', self.bond_specifiers)
+
+    def log_prob_forward(self, initial, proposed):
+        if '~' not in initial_smirks:
+            # contained no any-bonds
+            log_prob_forward = - np.inf
+        else:
+            n_bonds = len(initial_smirks.split('~')) - 1
+            number_of_ways_to_go_forward = len(self.bond_specifiers) * n_bonds
+            log_prob_forward = - np.log(number_of_ways_to_go_forward)
+        return log_prob_forward
+
+    def sample(self, initial_smirks):
+        """Look at unspecified bonds, randomly replace them with one of the bond specifiers"""
+        if '~' not in initial_smirks:
+            # contained no any-bonds
+            proposal_smirks = initial_smirks
+            number_of_ways_to_go_forward = 0 # calling -np.log(0) clutters up the terminal a bit
+            log_prob_forward = - np.inf
+        else:
+            components = initial_smirks.split('~')
+            bonds = ['~'] * (len(components) - 1)
+            bonds[np.random.randint(len(bonds))] = np.random.choice(self.bond_specifiers)
+
+            # components[0] + bonds[0] + components[1] + bonds[1] + ... + components[-1]
+            s = []
+            for i in range(len(bonds)):
+                s.append(components[i])
+                s.append(bonds[i])
+            s.append(components[-1])
+            proposal_smirks = ''.join(s)
+
+        return {
+            'proposal': proposal_smirks,
+            'log_prob_forward_over_reverse': self.log_prob_forward_over_reverse(initial_smirks, proposed_smirks),
+        }
+
+class SMIRKSElaborationProposal(DiscreteProposal):
+    def __init__(self, smirks_elaborators):
+        self.smirks_elaborators = smirks_elaborators
+        self.log_prob_pick_elaborator = - np.log(len(self.smirks_elaborators))
+
+    def log_prob_forward(self, initial, proposed):
+        return self.log_prob_pick_elaborator
+
+    def sample(self, initial_smirks):
+        """Pick one of the smirks_elaborators at random, and sample its proposal"""
+        proposal_dict = np.random.choice(self.smirks_elaborators).sample(initial_smirks)
+
+        #print('smirks proposal: {} --> {}'.format(initial_smirks, proposal_dict['proposal']))
+        proposal_dict['log_prob_forward_over_reverse'] += self.log_prob_forward(initial_smirks,
+                                                                                proposal_dict['proposal'])
+        return proposal_dict
 
 from bayes_implicit_solvent.utils import cached_substructure_matches
 
@@ -228,10 +232,10 @@ class FlatGBTyper(SMARTSTyper):
 
 class GBTypingTree():
     def __init__(self,
+                 smirks_elaboration_proposal,
                  default_parameters={'radius': 0.1 * unit.nanometer},
                  proposal_sigma=0.01 * unit.nanometer,
                  un_delete_able_types=set(['*']),
-                 sample_smirks_elaboration_proposal=sample_smirks_elaboration_proposal,
                  ):
         """We represent a typing scheme using a tree of elaborations (each child is an elaboration on its parent node)
         with types assigned using a last-match-wins scheme.
@@ -247,7 +251,7 @@ class GBTypingTree():
         self.un_delete_able_types = un_delete_able_types
         # initialize wildcard root node
         self.G.add_node('*', **self.default_parameters)
-        self.sample_smirks_elaboration_proposal = sample_smirks_elaboration_proposal
+        self.smirks_elaboration_proposal = smirks_elaboration_proposal
         self.update_node_order()
 
     def update_node_order(self):
@@ -295,52 +299,69 @@ class GBTypingTree():
         return node != '*'
 
     @property
+    def nodes(self):
+        return list(self.G.nodes())
+
+    @property
     def number_of_nodes(self):
         """The total number of nodes in the graph"""
-        return len(self.G.nodes())
+        return len(self.nodes)
+
+    @property
+    def leaves(self):
+        return [n for n in self.nodes if self.is_leaf(n)]
 
     @property
     def number_of_leaves(self):
         """The total number of leaf nodes in the graph"""
-        return sum(list(map(lambda n: self.is_leaf(n), self.G.nodes())))
+        return len(self.leaves)
+
+    @property
+    def delete_able_nodes(self):
+        return [n for n in self.nodes if self.is_delete_able(n)]
 
     @property
     def number_of_delete_able_nodes(self):
         """The total number of delete-able nodes in the graph"""
-        return sum(list(map(lambda n: self.is_delete_able(n), self.G.nodes())))
+        return len(self.delete_able_nodes)
+
+    @property
+    def decorate_able_nodes(self):
+        return [n for n in self.nodes if self.is_decorate_able(n)]
 
     @property
     def number_of_decorate_able_nodes(self):
         """The total number of decorate-able nodes in the graph"""
-        return sum(list(map(lambda n: self.is_decorate_able(n), self.G.nodes())))
+        return len(self.decorate_able_nodes)
 
     def sample_node_uniformly_at_random(self):
         """Select any node, including the root"""
-        nodes = list(self.G.nodes())
+        nodes = self.nodes
         if len(nodes) == 0:
             raise (RuntimeError('No nodes left!'))
-        return nodes[np.random.randint(len(nodes))]
+        return np.random.choice(nodes)
 
     def sample_delete_able_node_uniformly_at_random(self):
         """Select among the delete-able leaf nodes"""
-        delete_able_nodes = [n for n in self.G.nodes() if self.is_delete_able(n)]
-        if len(delete_able_nodes) == 0:
+
+        if len(self.delete_able_nodes) == 0:
             raise (RuntimeError('No delete-able nodes left!'))
-        return delete_able_nodes[np.random.randint(len(delete_able_nodes))]
+
+        return np.random.choice(self.delete_able_nodes)
 
     def sample_leaf_node_uniformly_at_random(self):
         """Select any node that has no descendents"""
-        leaf_nodes = [n for n in self.G.nodes() if self.is_leaf(n)]
+        leaf_nodes = self.leaves
         if len(leaf_nodes) == 0:
             raise (RuntimeError('No leaf nodes left!'))
-        return leaf_nodes[np.random.randint(len(leaf_nodes))]
+        return np.random.choice(leaf_nodes)
 
     def sample_decorate_able_node_uniformly_at_random(self):
         """Select any node we can propose to decorate"""
-        decorate_able_nodes = [n for n in self.G.nodes() if self.is_decorate_able(n)]
+        decorate_able_nodes = self.decorate_able_nodes
         if len(decorate_able_nodes) == 0:
             raise (RuntimeError('No decorate-able nodes left!'))
-        return decorate_able_nodes[np.random.randint(len(decorate_able_nodes))]
+        return np.random.choice(decorate_able_nodes)
 
     def add_child(self, child_smirks, parent_smirks):
         """Create a new type, and add a directed edge from parent to child"""
@@ -392,7 +413,7 @@ class GBTypingTree():
         parent_smirks = self.sample_decorate_able_node_uniformly_at_random()
 
         # create a new type by elaborating on the parent type
-        elaboration_proposal_dict = self.sample_smirks_elaboration_proposal(parent_smirks)
+        elaboration_proposal_dict = self.smirks_elaboration_proposal.sample(parent_smirks)
         child_smirks = elaboration_proposal_dict['proposal']
 
         # create a new type by elaborating on the parent type
@@ -447,9 +468,9 @@ class GBTypingTree():
         # (I think we need to sum up over all of the smirks nodes, which might have more than
         # one atom or bond. For initial tinkering, this will be close-ish, but it's almost certainly
         # wrong!)
-        log_prob_reverse = - np.log(proposal.number_of_decorate_able_nodes) \
-                           - np.log(len(all_decorators)) \
-                           + norm.logpdf(delta, loc=0, scale=sigma)
+        log_prob_reverse = norm.logpdf(delta, loc=0, scale=sigma)
+        for n in proposal.decorate_able_nodes:
+            log_prob_reverse += self.smirks_elaboration_proposal.log_prob_forward(n, None)
         log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
 
         return {'proposal': proposal,
@@ -504,8 +525,47 @@ class GBTypingTree():
 
 if __name__ == '__main__':
     initial_smirks = '[#8]'
+
+    print('using the following decorators:')
+
+    all_bond_specifiers = ['@', '-', '#', '=', ':']
+
+
+    all_bondable_types = list(atomic_number_dict.keys())
+
+    # atomic_decorators list:
+    ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'a', 'A']
+    charge_specifiers = ['-1', '+0', '+1', '+2']
+    hydrogen_count_specifiers = ['H0', 'H1', 'H2', 'H3', 'H4']
+    connectivity_specifiers = ['X1', 'X2', 'X3', 'X4']
+
+    all_specifier_lists = [
+        ring_specifiers,
+        charge_specifiers,
+        hydrogen_count_specifiers,
+        connectivity_specifiers,
+    ]
+
+    from itertools import chain
+
+    all_atomic_specifiers = list(chain(*all_specifier_lists))
+    all_bondable_types += ['[{}]'.format(s) for s in all_atomic_specifiers]
+    all_decorators = all_bondable_types + all_atomic_specifiers + all_bond_specifiers
+
+
+    bond_proposal = BondProposal(bondable_types=all_bondable_types)
+    atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=all_atomic_specifiers)
+    bond_specification_proposal = BondSpecificationProposal(bond_specifiers=all_bond_specifiers)
+
+    smirks_elaborators = [
+        bond_proposal,
+        atom_specification_proposal,
+        bond_specification_proposal,
+    ]
+    smirks_elaboration_proposal = SMIRKSElaborationProposal(smirks_elaborators=smirks_elaborators)
+
     for _ in range(50):
-        proposal = sample_smirks_elaboration_proposal(initial_smirks)
+        proposal = smirks_elaboration_proposal(initial_smirks)
         proposed_smirks = proposal['proposal']
         print('proposal: {} --> {}'.format(initial_smirks, proposed_smirks))
         lpfr = proposal['log_prob_forward_over_reverse']
