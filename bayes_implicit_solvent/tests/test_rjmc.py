@@ -12,41 +12,65 @@ from bayes_implicit_solvent.samplers import tree_rjmc
 
 import pytest
 
-def test_atom_specification_proposal(n_trials=100):
-    np.random.seed(0)
+
+def check_self_consistency(initial_tree, max_tries=100):
+    """Up to max_tries times, sample the creation proposal, then sample the deletion proposal, and
+    if you get back initial tree, confirm that log_prob_forward_over_reverse is consistent in the two directions"""
+    for _ in range(max_tries):
+        elaborated_proposal = initial_tree.sample_creation_proposal()
+        elaborate_tree = elaborated_proposal['proposal']
+        pruned_proposal = elaborate_tree.sample_deletion_proposal()
+        pruned_tree = pruned_proposal['proposal']
+
+        if (tuple(pruned_tree.ordered_nodes) == tuple(initial_tree.ordered_nodes)):
+            f = elaborated_proposal['log_prob_forward_over_reverse']
+            r = - pruned_proposal['log_prob_forward_over_reverse']
+
+            if not np.isclose(f, r):
+                pytest.fail('Inconsistent pair detected \n\t{}\n\t{}'.format(elaborated_proposal, pruned_proposal))
+            else:
+                return True
+    print(RuntimeWarning("Wasn't able to make a reversible pair of jumps in {} attempts for\n{}".format(max_tries, initial_tree)))
+
+
+def construct_initial_tree():
+    """Construct a basic tree with a hydrogen and the ability to specify connectivity"""
     specifiers = ['X1', 'X2', 'X3', 'X4']
     atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
     un_delete_able_types = ['*', '[#1]']
     initial_tree = GBTypingTree(smirks_elaboration_proposal=atom_specification_proposal,
                                 un_delete_able_types=un_delete_able_types)
     initial_tree.add_child(child_smirks=un_delete_able_types[1], parent_smirks='*')
+    return initial_tree
 
+
+
+
+def test_proposal_self_consistency_on_random_walk(walk_length=100):
+    """Sample a sequence of elaborate trees, then evaluate the self-consistency of create/delete
+    proposals for each tree visited in this sequence"""
+    print('attempting a random walk')
+    traj = [construct_initial_tree()]
+    for _ in range(walk_length):
+        traj.append(traj[-1].sample_creation_proposal()['proposal'])
+    for tree in traj:
+        check_self_consistency(tree)
+
+
+
+def test_atom_specification_proposal(n_tests=50):
+    np.random.seed(0)
+
+    initial_tree = construct_initial_tree()
     # adding and removing a single specifier
-    for _ in range(n_trials):
-        elaborated_proposal = initial_tree.sample_creation_proposal()
-        elaborate_tree = elaborated_proposal['proposal']
-        pruned_proposal = elaborate_tree.sample_deletion_proposal()
+    for _ in range(n_tests):
+        check_self_consistency(initial_tree)
 
-        f = elaborated_proposal['log_prob_forward_over_reverse']
-        r = - pruned_proposal['log_prob_forward_over_reverse']
-
-        if not np.isclose(f, r):
-            pytest.fail('Inconsistent pair detected \n\t{}\n\t{}'.format(elaborated_proposal, pruned_proposal))
     print('depth-1 trees okay')
     # adding and removing more than one specifier
-    for _ in range(n_trials):
-        elaborated_proposal = initial_tree.sample_creation_proposal()
-        elaborate_tree = elaborated_proposal['proposal']
-        twice_elaborated_proposal = elaborate_tree.sample_creation_proposal()
-        twice_elaborated_tree = twice_elaborated_proposal['proposal']
-        pruned_proposal = twice_elaborated_tree.sample_deletion_proposal()
-        pruned_tree = pruned_proposal['proposal']
-
-        if (tuple(pruned_tree.ordered_nodes) == tuple(elaborate_tree.ordered_nodes)):
-            f = twice_elaborated_proposal['log_prob_forward_over_reverse']
-            r = - pruned_proposal['log_prob_forward_over_reverse']
-            if not np.isclose(f, r):
-                pytest.fail('Inconsistent pair detected \n\t{}\n\t{}'.format(twice_elaborated_proposal, pruned_proposal))
+    for _ in range(n_tests):
+        elaborated_proposal = initial_tree.sample_creation_proposal()['proposal']
+        check_self_consistency(elaborated_proposal)
     print('depth-2 trees okay')
 
 def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
@@ -54,10 +78,10 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
 
     np.random.seed(0)
 
-    specifiers = ['X1', 'X2', 'X3', 'X4']
+    specifiers = ['X1', 'X2', 'X3']
 
     atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
-
+    N = len(atom_specification_proposal.atomic_specifiers)
     un_delete_able_types = ['*', '[#1]']
     initial_tree = GBTypingTree(smirks_elaboration_proposal=atom_specification_proposal,
                                 un_delete_able_types=un_delete_able_types)
@@ -65,7 +89,7 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
         initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
 
     from math import factorial
-    n_trees_at_length = lambda length : int(factorial(len(specifiers)) / factorial(len(specifiers) - length))
+    n_trees_at_length = lambda length : int(factorial(N) / factorial(N - length))
 
     number_of_trees_at_each_length = list(map(n_trees_at_length, range(len(specifiers) + 1)))
 
@@ -109,8 +133,3 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
 
     assert(np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-2))
     return result
-
-
-if __name__ == "__main__":
-    test_atom_specification_proposal()
-    #result = test_uniform_sampling()
