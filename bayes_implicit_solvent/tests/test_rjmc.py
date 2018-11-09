@@ -10,6 +10,22 @@ from networkx import nx
 
 from bayes_implicit_solvent.samplers import tree_rjmc
 
+def test_atom_specification_proposal(n_trials=100):
+    specifiers = ['X1', 'X2', 'X3', 'X4']
+    atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
+    un_delete_able_types = ['*', '[#1]']
+    initial_tree = GBTypingTree(smirks_elaboration_proposal=atom_specification_proposal,
+                                un_delete_able_types=un_delete_able_types)
+    initial_tree.add_child(child_smirks=un_delete_able_types[1], parent_smirks='*')
+
+
+    for _ in range(n_trials):
+        elaborated_proposal = initial_tree.sample_creation_proposal()
+        elaborate_tree = elaborated_proposal['proposal']
+        pruned_proposal = elaborate_tree.sample_deletion_proposal()
+
+        assert(elaborated_proposal['log_prob_forward_over_reverse'] == - pruned_proposal['log_prob_forward_over_reverse'])
+
 
 def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
     """Test that we get a uniform distribution over bounded-depth trees"""
@@ -30,13 +46,6 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
     n_trees_at_length = lambda length : int(factorial(len(specifiers)) / factorial(len(specifiers) - length))
 
     number_of_trees_at_each_length = list(map(n_trees_at_length, range(len(specifiers) + 1)))
-    print('number of possible distinct discrete trees at each length', list(zip(range(len(number_of_trees_at_each_length)), number_of_trees_at_each_length)))
-
-    number_of_possibilities = sum(number_of_trees_at_each_length)
-    print('number of possibilities:', number_of_possibilities)
-
-    print('initial tree:')
-    print(initial_tree)
 
 
     def log_prob(tree):
@@ -52,20 +61,20 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
                        n_iterations=n_iterations,
                        fraction_cross_model_proposals=0.99)
 
+    print('number of possible distinct discrete trees at each length', list(zip(range(len(number_of_trees_at_each_length)), number_of_trees_at_each_length)))
+
+    number_of_possibilities = sum(number_of_trees_at_each_length)
+    print('number of possibilities:', number_of_possibilities)
+
+    print('initial tree:')
+    print(initial_tree)
+
     traj = result['traj']
     discrete_models = [tuple(t.ordered_nodes[2:]) for t in traj]
     distinct_discrete_models = sorted(list(set(discrete_models)))
     for d in distinct_discrete_models:
         print(d)
     print("Number of distinct sampled models:", len(distinct_discrete_models))
-    discrete_model_dict = dict(zip(distinct_discrete_models, range(len(distinct_discrete_models))))
-    desired_distribution = np.ones(number_of_possibilities) / number_of_possibilities
-    actual_distribution = np.zeros(number_of_possibilities)
-    for d in discrete_models:
-        actual_distribution[discrete_model_dict[d]] += 1
-    actual_distribution /= np.sum(actual_distribution)
-
-    print(actual_distribution)
 
     lengths = np.array([len(d) for d in discrete_models])
 
@@ -74,9 +83,11 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
     for t in range(len(expected_length_distribution)):
         actual_length_distribution[t] += sum(lengths == t)
     actual_length_distribution /= np.sum(actual_length_distribution)
-
+    print('expected_length_distribution', expected_length_distribution)
+    print('actual_length_distribution', actual_length_distribution)
     return result, np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-2)
 
 
 if __name__ == "__main__":
-    result, length_distribution_okay = test_uniform_sampling()
+    test_atom_specification_proposal()
+    #result, length_distribution_okay = test_uniform_sampling()
