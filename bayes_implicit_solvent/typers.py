@@ -574,7 +574,7 @@ if __name__ == '__main__':
             initial_smirks = proposed_smirks
 
     np.random.seed(0)
-    initial_tree = GBTypingTree()
+    initial_tree = GBTypingTree(smirks_elaboration_proposal=smirks_elaboration_proposal)
     for base_type in atomic_number_dict.keys():
         initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
     print(initial_tree)
