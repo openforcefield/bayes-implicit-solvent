@@ -456,7 +456,14 @@ class GBTypingTree():
         proposal.remove_node(leaf_to_delete)
 
         # compute the log ratio of forward and reverse proposal probabilities
+
+        # the forward probability is given by just how many delete-able nodes there are
+        # prob_forward = 1 / self.number_of_delete_able_nodes
         log_prob_forward = - np.log(self.number_of_delete_able_nodes)
+
+        # the reverse probability is how likely we are to have grown the leaf we just deleted
+        # that's (probability of picking the parent) * (probability of picking that decorator given that we picked the parent)
+        # * (probability of picking that particular radius given that we picked the parent)
         parent = self.get_parent_type(leaf_to_delete)
         leaf_radius = self.get_radius(leaf_to_delete)
         parent_radius = self.get_radius(parent)
@@ -464,13 +471,9 @@ class GBTypingTree():
         delta = delta_radius / delta_radius.unit
         sigma = self.proposal_sigma / delta_radius.unit
 
-        # TODO: the "- np.log(len(all_decorators))" term is almost certainly incorrect!
-        # (I think we need to sum up over all of the smirks nodes, which might have more than
-        # one atom or bond. For initial tinkering, this will be close-ish, but it's almost certainly
-        # wrong!)
         log_prob_reverse = norm.logpdf(delta, loc=0, scale=sigma)
-        for n in proposal.decorate_able_nodes:
-            log_prob_reverse += self.smirks_elaboration_proposal.log_prob_forward(n, None)
+        log_prob_reverse += - np.log(proposal.number_of_decorate_able_nodes)
+        log_prob_reverse += proposal.smirks_elaboration_proposal.log_prob_forward(parent, None)
         log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
 
         return {'proposal': proposal,
