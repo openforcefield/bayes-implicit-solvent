@@ -56,7 +56,7 @@ class BondProposal(DiscreteProposal):
             raise(RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
         ind_to_insert = np.random.choice(closing_bracket_indices) + 1
 
-        decorator = '~{}'.format(np.random.choice(bondable_types))
+        decorator = '~{}'.format(np.random.choice(self.bondable_types))
 
         proposal_smirks = initial_smirks[:ind_to_insert] + decorator + initial_smirks[ind_to_insert:]
 
