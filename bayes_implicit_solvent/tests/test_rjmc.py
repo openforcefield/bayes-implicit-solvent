@@ -4,13 +4,16 @@
 
 import numpy as np
 
-from bayes_implicit_solvent.typers import GBTypingTree, AtomSpecificationProposal
+from bayes_implicit_solvent.typers import GBTypingTree, AtomSpecificationProposal, BondSpecificationProposal, BondProposal
 
 from networkx import nx
 
 from bayes_implicit_solvent.samplers import tree_rjmc
 
+import pytest
+
 def test_atom_specification_proposal(n_trials=100):
+    np.random.seed(0)
     specifiers = ['X1', 'X2', 'X3', 'X4']
     atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
     un_delete_able_types = ['*', '[#1]']
@@ -18,14 +21,33 @@ def test_atom_specification_proposal(n_trials=100):
                                 un_delete_able_types=un_delete_able_types)
     initial_tree.add_child(child_smirks=un_delete_able_types[1], parent_smirks='*')
 
-
+    # adding and removing a single specifier
     for _ in range(n_trials):
         elaborated_proposal = initial_tree.sample_creation_proposal()
         elaborate_tree = elaborated_proposal['proposal']
         pruned_proposal = elaborate_tree.sample_deletion_proposal()
 
-        assert(elaborated_proposal['log_prob_forward_over_reverse'] == - pruned_proposal['log_prob_forward_over_reverse'])
+        f = elaborated_proposal['log_prob_forward_over_reverse']
+        r = - pruned_proposal['log_prob_forward_over_reverse']
 
+        if not np.isclose(f, r):
+            pytest.fail('Inconsistent pair detected \n\t{}\n\t{}'.format(elaborated_proposal, pruned_proposal))
+    print('depth-1 trees okay')
+    # adding and removing more than one specifier
+    for _ in range(n_trials):
+        elaborated_proposal = initial_tree.sample_creation_proposal()
+        elaborate_tree = elaborated_proposal['proposal']
+        twice_elaborated_proposal = elaborate_tree.sample_creation_proposal()
+        twice_elaborated_tree = twice_elaborated_proposal['proposal']
+        pruned_proposal = twice_elaborated_tree.sample_deletion_proposal()
+        pruned_tree = pruned_proposal['proposal']
+
+        if (tuple(pruned_tree.ordered_nodes) == tuple(elaborate_tree.ordered_nodes)):
+            f = twice_elaborated_proposal['log_prob_forward_over_reverse']
+            r = - pruned_proposal['log_prob_forward_over_reverse']
+            if not np.isclose(f, r):
+                pytest.fail('Inconsistent pair detected \n\t{}\n\t{}'.format(twice_elaborated_proposal, pruned_proposal))
+    print('depth-2 trees okay')
 
 def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
     """Test that we get a uniform distribution over bounded-depth trees"""
@@ -46,7 +68,6 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
     n_trees_at_length = lambda length : int(factorial(len(specifiers)) / factorial(len(specifiers) - length))
 
     number_of_trees_at_each_length = list(map(n_trees_at_length, range(len(specifiers) + 1)))
-
 
     def log_prob(tree):
         """Uniform distribution over trees up to depth cutoff without duplicated nodes"""
@@ -85,9 +106,11 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
     actual_length_distribution /= np.sum(actual_length_distribution)
     print('expected_length_distribution', expected_length_distribution)
     print('actual_length_distribution', actual_length_distribution)
-    return result, np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-2)
+
+    assert(np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-2))
+    return result
 
 
 if __name__ == "__main__":
     test_atom_specification_proposal()
-    #result, length_distribution_okay = test_uniform_sampling()
+    #result = test_uniform_sampling()
