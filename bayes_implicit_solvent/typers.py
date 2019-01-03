@@ -42,7 +42,7 @@ class BondProposal(DiscreteProposal):
         """Find square brackets, and propose to any-bond it to any element of bondable_types
 
         [#1] --> [#1]~[#8]
-        [#1] --> [#6]~[-1]
+        [#6] --> [#6]~[-1]
 
         # TODO: Also allow multiple bond specification
         # TODO: e.g. '[#7]-[#6]' --> '[#7]([#1])-[#6]'
