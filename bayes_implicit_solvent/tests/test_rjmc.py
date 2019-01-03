@@ -3,14 +3,11 @@
 # * Likelihood Gaussian in GB radius, confirm that we get expected result
 
 import numpy as np
-
-from bayes_implicit_solvent.typers import GBTypingTree, AtomSpecificationProposal, BondSpecificationProposal, BondProposal
-
+import pytest
 from networkx import nx
 
 from bayes_implicit_solvent.samplers import tree_rjmc
-
-import pytest
+from bayes_implicit_solvent.typers import GBTypingTree, AtomSpecificationProposal
 
 
 def check_self_consistency(initial_tree, max_tries=100):
@@ -30,20 +27,20 @@ def check_self_consistency(initial_tree, max_tries=100):
                 pytest.fail('Inconsistent pair detected \n\t{}\n\t{}'.format(elaborated_proposal, pruned_proposal))
             else:
                 return True
-    print(RuntimeWarning("Wasn't able to make a reversible pair of jumps in {} attempts for\n{}".format(max_tries, initial_tree)))
+    print(RuntimeWarning(
+        "Wasn't able to make a reversible pair of jumps in {} attempts for\n{}".format(max_tries, initial_tree)))
 
 
 def construct_initial_tree():
     """Construct a basic tree with a hydrogen and the ability to specify connectivity"""
     specifiers = ['X1', 'X2', 'X3', 'X4']
     atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
-    un_delete_able_types = ['*', '[#1]']
+    un_delete_able_types = ['*', '[#1]', '[#2]']
     initial_tree = GBTypingTree(smirks_elaboration_proposal=atom_specification_proposal,
                                 un_delete_able_types=un_delete_able_types)
-    initial_tree.add_child(child_smirks=un_delete_able_types[1], parent_smirks='*')
+    for base_type in un_delete_able_types[1:]:
+        initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
     return initial_tree
-
-
 
 
 def test_proposal_self_consistency_on_random_walk(walk_length=100):
@@ -55,7 +52,6 @@ def test_proposal_self_consistency_on_random_walk(walk_length=100):
         traj.append(traj[-1].sample_creation_proposal()['proposal'])
     for tree in traj:
         check_self_consistency(tree)
-
 
 
 def test_atom_specification_proposal(n_tests=50):
@@ -73,6 +69,7 @@ def test_atom_specification_proposal(n_tests=50):
         check_self_consistency(elaborated_proposal)
     print('depth-2 trees okay')
 
+
 def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
     """Test that we get a uniform distribution over bounded-depth trees"""
 
@@ -89,7 +86,7 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
         initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
 
     from math import factorial
-    n_trees_at_length = lambda length : int(factorial(N) / factorial(N - length))
+    n_trees_at_length = lambda length: int(factorial(N) / factorial(N - length))
 
     number_of_trees_at_each_length = list(map(n_trees_at_length, range(len(specifiers) + 1)))
 
@@ -106,7 +103,8 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
                        n_iterations=n_iterations,
                        fraction_cross_model_proposals=0.99)
 
-    print('number of possible distinct discrete trees at each length', list(zip(range(len(number_of_trees_at_each_length)), number_of_trees_at_each_length)))
+    print('number of possible distinct discrete trees at each length',
+          list(zip(range(len(number_of_trees_at_each_length)), number_of_trees_at_each_length)))
 
     number_of_possibilities = sum(number_of_trees_at_each_length)
     print('number of possibilities:', number_of_possibilities)
@@ -131,5 +129,5 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=10000):
     print('expected_length_distribution', expected_length_distribution)
     print('actual_length_distribution', actual_length_distribution)
 
-    assert(np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-2))
+    assert (np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-2))
     return result
