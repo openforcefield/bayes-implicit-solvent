@@ -1,6 +1,6 @@
 from bayes_implicit_solvent.utils import remove_top_right_spines
 from bayes_implicit_solvent.typers import FlatGBTyper
-from bayes_implicit_solvent.type_samplers import GBModel
+from bayes_implicit_solvent.proposals import GBModel
 
 from pickle import load
 import matplotlib.pyplot as plt
@@ -34,7 +34,7 @@ for _ in range(10):
     print('testing on ', name_test, " ({})".format(smiles_test))
 
     from pkg_resources import resource_filename
-    from bayes_implicit_solvent.posterior_sampling import Molecule
+    from bayes_implicit_solvent.molecule import Molecule
     import mdtraj as md
 
     n_snapshots = 100

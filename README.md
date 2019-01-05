@@ -5,7 +5,7 @@ experiments with Bayesian calibration of implicit solvent models
 
 ### `bayes_implicit_solvent`
 * `numpy_gb_models.py` -- Clones the OpenMM GBSA OBC force in numpy (vectorized and non-vectorized), since I wasn't able to compute gradients w.r.t. per-particle parameters in CustomGBForce.
-* `posterior_sampling.py` -- Defines a class `Molecule` that predicts solvation free energy as function of GB parameters and compares to an experimental value, for use in posterior sampling.
+* `molecule.py` -- Defines a class `Molecule` that predicts solvation free energy as function of GB parameters and compares to an experimental value, for use in posterior sampling.
 * `prior_checking.py` -- methods for checking whether a typing scheme is legal
 * `samplers.py` -- defines parameter samplers: random-walk Metropolis-Hastings, Langevin (unadjusted and Metropolis-Adjusted), RJMC
 * `smarts.py` -- definitions of SMARTS primitives and decorators
@@ -13,7 +13,7 @@ experiments with Bayesian calibration of implicit solvent models
 * `typers.py` -- defines the following classes: `DiscreteProposal`, `BondProposal`, `AtomSpecificationProposal`, `BondSpecificationProposal`, `SMIRKSElaborationProposal`, `SMARTSTyper`, `FlatGBTyper`, `GBTypingTree`, which hopefully encapsulate the bookkeeping needed to sample typing schemes using RJMC
 * `utils.py` -- un-filed utilities for: interacting with OpenEye, getting or applying GB parameters in OpenMM systems, caching substructure matches
 
-(Currently contains some code that needs to be removed or refactored. `type_samplers.py` defines the following classes: `Proposal`, `RadiusInheritanceProposal`, `AddOrDeletePrimitiveAtEndOfList`, `AddOrDeletePrimitiveAtRandomPositionInList`, `SwapTwoPatterns`, `MultiProposal`, which were used in initial experiments that did not use a tree representation of the typing scheme. `prepare_freesolv.py` uses OpenEye to construct OEMol objects, assign partial charges, etc. starting from a list of SMILES strings.)
+(Currently contains some code that needs to be removed or refactored. `proposals.py` defines the following classes: `Proposal`, `RadiusInheritanceProposal`, `AddOrDeletePrimitiveAtEndOfList`, `AddOrDeletePrimitiveAtRandomPositionInList`, `SwapTwoPatterns`, `MultiProposal`, which were used in initial experiments that did not use a tree representation of the typing scheme. `prepare_freesolv.py` uses OpenEye to construct OEMol objects, assign partial charges, etc. starting from a list of SMILES strings.)
 
 #### `bayes_implicit_solvent/continuous-parameter-experiments`
 * `elemental_types_mala.py` -- Use Metropolis-adjusted Langevin to sample the radii and scales in the elemtnal-types-only model

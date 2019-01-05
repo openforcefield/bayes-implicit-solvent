@@ -1,5 +1,5 @@
 from bayes_implicit_solvent.typers import FlatGBTyper
-from bayes_implicit_solvent.type_samplers import GBModel
+from bayes_implicit_solvent.proposals import GBModel
 import numpy as np
 from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
 
@@ -23,7 +23,7 @@ smiles_subset = [smiles_list[i] for i in ind_subset]
 print('"training" on ', smiles_subset)
 
 from pkg_resources import resource_filename
-from bayes_implicit_solvent.posterior_sampling import Molecule
+from bayes_implicit_solvent.molecule import Molecule
 import mdtraj as md
 
 n_snapshots = 10
@@ -40,7 +40,7 @@ for (i, smiles) in zip(ind_subset, smiles_subset):
 
 # okay let's try adding and removing primitive types!
 from bayes_implicit_solvent.smarts import atomic_primitives, atomic_number_dict
-from bayes_implicit_solvent.type_samplers import AddOrDeletePrimitiveAtEndOfList, AddOrDeletePrimitiveAtRandomPositionInList, MergeSplitConjunction
+from bayes_implicit_solvent.proposals import AddOrDeletePrimitiveAtEndOfList, AddOrDeletePrimitiveAtRandomPositionInList, MergeSplitConjunction
 from bayes_implicit_solvent.samplers import random_walk_mh, sparse_mh
 
 cross_model_proposal = AddOrDeletePrimitiveAtEndOfList(list(atomic_primitives.keys()))

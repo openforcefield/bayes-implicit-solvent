@@ -9,7 +9,7 @@ from autograd import numpy as np
 from pkg_resources import resource_filename
 from simtk import unit
 
-from bayes_implicit_solvent.posterior_sampling import Molecule
+from bayes_implicit_solvent.molecule import Molecule
 from bayes_implicit_solvent.samplers import MALA
 from bayes_implicit_solvent.solvation_free_energy import smiles_list
 from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots

@@ -3,7 +3,7 @@ import numpy as np
 from pkg_resources import resource_filename
 from tqdm import tqdm
 
-from bayes_implicit_solvent.posterior_sampling import Molecule
+from bayes_implicit_solvent.molecule import Molecule
 from bayes_implicit_solvent.smarts import atomic_number_dict
 from bayes_implicit_solvent.solvation_free_energy import smiles_list
 from bayes_implicit_solvent.typers import GBTypingTree

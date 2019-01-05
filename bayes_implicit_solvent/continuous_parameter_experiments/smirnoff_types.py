@@ -60,7 +60,7 @@ import mdtraj as md
 import numpy as np
 from pkg_resources import resource_filename
 
-from bayes_implicit_solvent.posterior_sampling import Molecule
+from bayes_implicit_solvent.molecule import Molecule
 from bayes_implicit_solvent.samplers import sparse_mh
 from bayes_implicit_solvent.solvation_free_energy import smiles_list
 from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
