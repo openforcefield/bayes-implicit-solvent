@@ -8,12 +8,13 @@ from simtk import unit
 from bayes_implicit_solvent.smarts import atomic_number_dict
 from bayes_implicit_solvent.utils import smarts_to_subsearch
 
+
 class DiscreteProposal():
     def sample(self, initial):
-        raise(NotImplementedError())
+        raise (NotImplementedError())
 
     def log_prob_forward(self, initial, proposed):
-        raise(NotImplementedError())
+        raise (NotImplementedError())
 
     def log_prob_reverse(self, initial, proposed):
         """Only one way to go backwards"""
@@ -25,6 +26,7 @@ class DiscreteProposal():
 
     def __call__(self, initial):
         return self.sample(initial)
+
 
 class BondProposal(DiscreteProposal):
     def __init__(self, bondable_types):
@@ -53,7 +55,7 @@ class BondProposal(DiscreteProposal):
         n_atoms = len(closing_bracket_indices)
 
         if n_atoms == 0:
-            raise(RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
+            raise (RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
         ind_to_insert = np.random.choice(closing_bracket_indices) + 1
 
         decorator = '~{}'.format(np.random.choice(self.bondable_types))
@@ -86,7 +88,7 @@ class AtomSpecificationProposal(DiscreteProposal):
         n_atoms = len(closing_bracket_indices)
 
         if n_atoms == 0:
-            raise(RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
+            raise (RuntimeError('no atoms found in this smirks pattern!\n{}'.format(initial_smirks)))
         ind_to_insert = np.random.choice(closing_bracket_indices)
 
         decorator = '&{}'.format(np.random.choice(self.atomic_specifiers))
@@ -97,6 +99,7 @@ class AtomSpecificationProposal(DiscreteProposal):
             'proposal': proposal_smirks,
             'log_prob_forward_over_reverse': self.log_prob_forward_over_reverse(initial_smirks, proposal_smirks),
         }
+
 
 class BondSpecificationProposal(DiscreteProposal):
     def __init__(self, bond_specifiers):
@@ -118,7 +121,7 @@ class BondSpecificationProposal(DiscreteProposal):
         if '~' not in initial_smirks:
             # contained no any-bonds
             proposal_smirks = initial_smirks
-            number_of_ways_to_go_forward = 0 # calling -np.log(0) clutters up the terminal a bit
+            number_of_ways_to_go_forward = 0  # calling -np.log(0) clutters up the terminal a bit
             log_prob_forward = - np.inf
         else:
             components = initial_smirks.split('~')
@@ -138,6 +141,7 @@ class BondSpecificationProposal(DiscreteProposal):
             'log_prob_forward_over_reverse': self.log_prob_forward_over_reverse(initial_smirks, proposed_smirks),
         }
 
+
 class SMIRKSElaborationProposal(DiscreteProposal):
     def __init__(self, smirks_elaborators):
         self.smirks_elaborators = smirks_elaborators
@@ -150,12 +154,14 @@ class SMIRKSElaborationProposal(DiscreteProposal):
         """Pick one of the smirks_elaborators at random, and sample its proposal"""
         proposal_dict = np.random.choice(self.smirks_elaborators).sample(initial_smirks)
 
-        #print('smirks proposal: {} --> {}'.format(initial_smirks, proposal_dict['proposal']))
+        # print('smirks proposal: {} --> {}'.format(initial_smirks, proposal_dict['proposal']))
         proposal_dict['log_prob_forward_over_reverse'] += self.log_prob_forward(initial_smirks,
                                                                                 proposal_dict['proposal'])
         return proposal_dict
 
+
 from bayes_implicit_solvent.utils import cached_substructure_matches
+
 
 class SMARTSTyper():
     def __init__(self, smarts_iter):
@@ -432,7 +438,6 @@ class GBTypingTree():
         delta = delta_radius / delta_radius.unit
         sigma = self.proposal_sigma / delta_radius.unit
 
-
         log_prob_forward = - np.log(self.number_of_decorate_able_nodes) \
                            + norm.logpdf(delta, loc=0, scale=sigma)
         log_prob_reverse = - np.log(proposal.number_of_delete_able_nodes)
@@ -533,7 +538,6 @@ if __name__ == '__main__':
 
     all_bond_specifiers = ['@', '-', '#', '=', ':']
 
-
     all_bondable_types = list(atomic_number_dict.keys())
 
     # atomic_decorators list:
@@ -554,7 +558,6 @@ if __name__ == '__main__':
     all_atomic_specifiers = list(chain(*all_specifier_lists))
     all_bondable_types += ['[{}]'.format(s) for s in all_atomic_specifiers]
     all_decorators = all_bondable_types + all_atomic_specifiers + all_bond_specifiers
-
 
     bond_proposal = BondProposal(bondable_types=all_bondable_types)
     atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=all_atomic_specifiers)
