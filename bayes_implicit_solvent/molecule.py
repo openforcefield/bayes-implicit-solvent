@@ -5,9 +5,14 @@ from simtk import unit
 from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_energy, \
     get_vacuum_samples, db, smiles_list, mol_top_sys_pos_list, create_implicit_sim, beta
 
+# TODO: maybe expose these parameters, if we need this not to be hard-coded...
+
+
+
 
 class Molecule():
-    def __init__(self, smiles, verbose=False, vacuum_samples=None):
+    def __init__(self, smiles, verbose=False, vacuum_samples=None,
+                 n_samples=50, thinning=50000):
         """Create an object that supports prediction of solvation free energy given radii
 
         Parameters
@@ -19,6 +24,12 @@ class Molecule():
             whether to print updates
 
         vacuum_samples : list of unit'd snapshots
+
+        n_samples : int
+            if vacuum_samples not provided, how many samples to collect?
+
+        thinning : int
+            if vacuum samples not provided, how many steps to take between samples?
 
         Attributes
         ----------
@@ -79,17 +90,17 @@ class Molecule():
         self.atom_names = [a.name for a in self.top.atoms()]
         self.n_atoms = len(self.pos)
 
+        self._n_samples = n_samples
+        self._thinning = thinning
+
         if type(vacuum_samples) == type(None):
             if verbose: print('collecting vacuum samples...')
-            # TODO: maybe expose these parameters, if we need this not to be hard-coded...
-            self._n_samples = 50
-            self._thinning = 50000
             self.vacuum_sim, self.vacuum_traj = get_vacuum_samples(self.top, self.sys, self.pos,
                                                                    n_samples=self._n_samples,
                                                                    thinning=self._thinning)
         else:
-            # self.vacuum_sim, _ = get_vacuum_samples(self.top, self.sys, self.pos, n_samples=2, thinning=2)
             self.vacuum_traj = vacuum_samples
+            self._n_samples = len(vacuum_samples)
 
         # both in reduced units
         self.experimental_value = beta * (float(db[mol_index_in_freesolv][3]) * unit.kilocalorie_per_mole)
@@ -176,7 +187,7 @@ class Molecule():
     def log_prob(self, radii):
         r_tuple = tuple(radii)
 
-        # TODO: Replace dictionary (whose memory footprint will keep increasing throughout
+        # TODO: Replace dictionary (whose memory footprint will keep increasing throughout)
         # the object's lifetime) with deque
         if r_tuple not in self.log_prob_cache:
             self.log_prob_cache[r_tuple] = self.log_prob_uncached(radii)
