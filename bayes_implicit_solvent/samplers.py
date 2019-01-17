@@ -293,6 +293,26 @@ def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01,
 
 
 def tree_rjmc(initial_tree, log_prob_func, n_iterations=1000, fraction_cross_model_proposals=0.25):
+    """RJMC with create/delete proposals
+
+    At each iteration, flip a biased coin to decide whether to attempt a within-model move
+    or a cross-model move.
+    If a within-model move, call iterate.sample_radius_perturbation_proposal().
+    If a cross-model move, call iterate.sample_create_delete_proposal().
+
+    # TODO: Generalize this a bit (e.g. don't hard-code the expected method names)
+
+    Parameters
+    ----------
+    initial_tree : GBTypingTree
+    log_prob_func : callable (GBTypingTree --> float)
+    n_iterations : int
+    fraction_cross_model_proposals : float between 0 and 1
+
+    Returns
+    -------
+    result_dictionary (keys: "traj", "log_probs", "log_acceptance_probabilities")
+    """
     trees = [initial_tree]
     log_probs = [log_prob_func(trees[-1])]
     log_acceptance_probabilities = []
