@@ -291,8 +291,6 @@ def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01,
 
     return np.array(traj), np.array(log_probs), np.array(grads), np.array(acceptance_probs), np.array(stepsizes)
 
-# TODO: Automatically adjust MALA stepsize
-
 
 def tree_rjmc(initial_tree, log_prob_func, n_iterations=1000, fraction_cross_model_proposals=0.25):
     trees = [initial_tree]
