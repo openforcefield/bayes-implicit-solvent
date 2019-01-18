@@ -72,10 +72,12 @@ def test_atom_specification_proposal(n_tests=50):
 
 
 from simtk import unit
+from scipy.stats import multivariate_normal
 
 
-def test_uniform_sampling(depth_cutoff=2, n_iterations=50000):
-    """Test that we get a uniform distribution over bounded-depth trees"""
+def test_uniform_sampling(depth_cutoff=2, n_iterations=5000):
+    """Test that we get a uniform distribution over bounded-depth trees,
+    when each tree has the same normalizing constant (namely, 1)"""
 
     np.random.seed(0)
 
@@ -105,10 +107,7 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=50000):
 
         if (len(set(tree.nodes)) == tree.number_of_nodes) and \
                 (max(nx.shortest_path_length(tree.G, source='*').values()) <= depth_cutoff):
-            # return 0
-            return np.sum(
-                [((initial_tree.get_radius(smirks) - (0.1 * unit.nanometer)) / unit.nanometer) ** 2 for smirks in
-                 initial_tree.nodes])
+            return multivariate_normal.logpdf(tree.get_radii(), 0.1 * np.ones(tree.number_of_nodes))
         else:
             return - np.inf
 
