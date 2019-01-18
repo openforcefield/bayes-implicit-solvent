@@ -403,6 +403,13 @@ class GBTypingTree():
         """Get the value of the "radius" property for the smirks type"""
         return nx.get_node_attributes(self.G, 'radius')[smirks]
 
+    def get_radii(self):
+        """Get the "radius" properties for all nodes as an array"""
+        radii = np.zeros(self.number_of_nodes)
+        for i in range(self.number_of_nodes):
+            radii[i] = self.get_radius(self.ordered_nodes[i]) / unit.nanometer
+        return radii
+
     def set_radius(self, smirks, radius):
         """Set the value of the "radius" property for the smirks type"""
         nx.set_node_attributes(self.G, {smirks: radius}, name='radius')
