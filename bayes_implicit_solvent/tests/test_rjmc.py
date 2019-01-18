@@ -76,8 +76,9 @@ from scipy.stats import multivariate_normal
 
 
 def test_uniform_sampling(depth_cutoff=2, n_iterations=5000):
-    """Test that we get a uniform distribution over bounded-depth trees,
-    when each tree has the same normalizing constant (namely, 1)"""
+    """Test that a sampler targeting these discrete structures and associated continuous parameters jointly
+    obtains a uniform distribution over bounded-depth trees when appropriate.
+    To do this, we ensure that each discrete tree has the same normalizing constant (namely, 1)."""
 
     np.random.seed(0)
 
@@ -103,11 +104,23 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=5000):
     number_of_trees_at_each_length = list(map(n_trees_at_length, range(len(specifiers) + 1)))
 
     def log_prob(tree):
-        """Uniform distribution over trees up to depth cutoff without duplicated nodes"""
+        """To induce a uniform marginal distribution over *discrete* trees
+        up to depth cutoff without duplicated nodes:
+        1. check that the discrete tree is valid -- if not, return a log-probability of -inf
+        2. define a normalized distribution over each tree's *continuous* parameters,
+        namely a multivariate normal distribution
 
-        if (len(set(tree.nodes)) == tree.number_of_nodes) and \
-                (max(nx.shortest_path_length(tree.G, source='*').values()) <= depth_cutoff):
-            return multivariate_normal.logpdf(tree.get_radii(), 0.1 * np.ones(tree.number_of_nodes))
+        If we sample the resulting probability distribution properly, we should obtain:
+        1. A uniform marginal distribution over valid discrete trees
+        2. A gaussian distribution over the continuous parameters within each model
+        """
+        N_nodes = tree.number_of_nodes
+        no_duplicates = (len(set(tree.nodes)) == N_nodes)
+        within_depth_limit = (max(nx.shortest_path_length(tree.G, source='*').values()) <= depth_cutoff)
+        if no_duplicates and within_depth_limit:
+            mean_vector = 0.1 * np.ones(N_nodes) # a length-N_nodes vector of 0.1's
+            tree_radii = tree.get_radii() # a length-N_nodes vector of the radii associated with nodes in the tree
+            return multivariate_normal.logpdf(x=tree_radii, mean=mean_vector)
         else:
             return - np.inf
 
