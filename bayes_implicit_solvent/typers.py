@@ -6,7 +6,7 @@ from scipy.stats import norm
 from simtk import unit
 
 from bayes_implicit_solvent.smarts import atomic_number_dict
-from bayes_implicit_solvent.utils import smarts_to_subsearch
+from bayes_implicit_solvent.utils import smarts_to_subsearch, convert_to_unitd_array
 
 
 class DiscreteProposal():
@@ -277,7 +277,7 @@ class GBTypingTree():
         """Return a unit'd array of radii"""
         types = self.apply_to_molecule(molecule)
         radii = [self.get_radius(self.ordered_nodes[t]) for t in types]
-        return np.array([r / r.unit for r in radii]) * radii[0].unit
+        return convert_to_unitd_array(radii)
 
     def apply_to_molecule_list(self, molecules):
         """Assign types to all molecules in a list"""

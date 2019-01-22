@@ -100,3 +100,10 @@ def cached_substructure_matches(mol, subsearch_string):
         number_of_cache_misses += 1
 
     return subsearch_cache[arg_tuple]
+
+
+def convert_to_unitd_array(unitd_quantities):
+    """Given an iterable of Quantities in compatible units, make a numpy
+    array of unitless scalars, then multiply the array by the unit"""
+    u = unitd_quantities[0].unit
+    return np.array([q.value_in_unit(u) for q in unitd_quantities]) * u
