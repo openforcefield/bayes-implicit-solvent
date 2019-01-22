@@ -5,9 +5,10 @@ import numpy as np
 from scipy.stats import norm
 from simtk import unit
 
+from bayes_implicit_solvent.constants import RADIUS_UNIT
 from bayes_implicit_solvent.smarts import atomic_number_dict
 from bayes_implicit_solvent.utils import smarts_to_subsearch, convert_to_unitd_array
-from bayes_implicit_solvent.constants import RADIUS_UNIT
+
 
 class DiscreteProposal():
     def sample(self, initial):
@@ -540,16 +541,15 @@ class GBTypingTree():
 
         assert (p_forward > 0)
 
-        proposal = move_sampler_dict[move](self)
-        p_reverse = move_prob_dict[reverse_move](proposal)
-        log_prob_forward_over_reverse = np.log(p_forward / p_reverse)
+        proposal_dict = move_sampler_dict[move](self)
+        p_reverse = move_prob_dict[reverse_move](proposal_dict['proposal'])
+        log_prob_forward_over_reverse_correction = np.log(p_forward / p_reverse)
 
-        assert (np.isfinite(log_prob_forward_over_reverse))
-        assert (log_prob_forward_over_reverse <= 0.0)
+        assert (np.isfinite(log_prob_forward_over_reverse_correction))
 
-        proposal['log_prob_forward_over_reverse'] += log_prob_forward_over_reverse
+        proposal_dict['log_prob_forward_over_reverse'] += log_prob_forward_over_reverse_correction
 
-        return proposal
+        return proposal_dict
 
     def sample_radius_perturbation_proposal(self):
         """Pick a type at random and propose to perturb its radius slightly"""
