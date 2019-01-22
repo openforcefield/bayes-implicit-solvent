@@ -242,6 +242,7 @@ class GBTypingTree():
                  default_parameters={'radius': 0.1 * unit.nanometer},
                  proposal_sigma=0.01 * unit.nanometer,
                  un_delete_able_types=set(['*']),
+                 max_nodes=100,
                  ):
         """We represent a typing scheme using a tree of elaborations (each child is an elaboration on its parent node)
         with types assigned using a last-match-wins scheme.
@@ -255,6 +256,7 @@ class GBTypingTree():
         self.default_parameters = default_parameters
         self.proposal_sigma = proposal_sigma
         self.un_delete_able_types = un_delete_able_types
+        self.max_nodes = max_nodes
         # initialize wildcard root node
         self.G.add_node('*', **self.default_parameters)
         self.smirks_elaboration_proposal = smirks_elaboration_proposal
@@ -342,32 +344,31 @@ class GBTypingTree():
 
     def sample_node_uniformly_at_random(self):
         """Select any node, including the root"""
-        nodes = self.nodes
-        if len(nodes) == 0:
+        if self.number_of_nodes == 0:
             raise (RuntimeError('No nodes left!'))
-        return np.random.choice(nodes)
+
+        return np.random.choice(self.nodes)
 
     def sample_delete_able_node_uniformly_at_random(self):
         """Select among the delete-able leaf nodes"""
-
-        if len(self.delete_able_nodes) == 0:
+        if self.number_of_delete_able_nodes == 0:
             raise (RuntimeError('No delete-able nodes left!'))
 
         return np.random.choice(self.delete_able_nodes)
 
     def sample_leaf_node_uniformly_at_random(self):
         """Select any node that has no descendents"""
-        leaf_nodes = self.leaves
-        if len(leaf_nodes) == 0:
+        if self.number_of_leaves == 0:
             raise (RuntimeError('No leaf nodes left!'))
-        return np.random.choice(leaf_nodes)
+
+        return np.random.choice(self.leaves)
 
     def sample_decorate_able_node_uniformly_at_random(self):
         """Select any node we can propose to decorate"""
-        decorate_able_nodes = self.decorate_able_nodes
-        if len(decorate_able_nodes) == 0:
+        if self.number_of_decorate_able_nodes == 0:
             raise (RuntimeError('No decorate-able nodes left!'))
-        return np.random.choice(decorate_able_nodes)
+
+        return np.random.choice(self.decorate_able_nodes)
 
     def add_child(self, child_smirks, parent_smirks):
         """Create a new type, and add a directed edge from parent to child"""
@@ -492,17 +493,63 @@ class GBTypingTree():
                 'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
                 }
 
-    def sample_create_delete_proposal(self):
-        """Flip a coin and either propose to create or delete a type"""
+    @property
+    def probability_of_sampling_a_create_proposal(self):
+        """Probability of attempting to create a new type"""
 
-        if self.number_of_delete_able_nodes == 0:
-            return self.sample_creation_proposal()
-        # TODO: Double-check, probably need to modify log_prob_forward_over_reverse at this boundary?
+        N, max_N = self.number_of_nodes, self.max_nodes
 
-        if np.random.rand() <= 0.5:
-            return self.sample_creation_proposal()
+        # if we already have the maximum allowable number of nodes, cannot create another
+        if N >= max_N:
+            if N > max_N:
+                raise (RuntimeError('Tree contains {} nodes, exceeding max_nodes={}'.format(N, max_N)))
+            return 0.0
+
+        # if we have no delete-able nodes, must sample create proposal
+        elif self.number_of_delete_able_nodes == 0:
+            return 1.0
+
+        # otherwise, flip a coin
         else:
-            return self.sample_deletion_proposal()
+            return 0.5
+
+    @property
+    def probability_of_sampling_a_delete_proposal(self):
+        """Probability of attempting to delete an existing type"""
+        return 1.0 - self.probability_of_sampling_a_create_proposal
+
+    def sample_create_delete_proposal(self):
+        """Randomly propose to create or delete a type"""
+
+        move_sampler_dict = {'create': lambda x: x.sample_creation_proposal(),
+                             'delete': lambda x: x.sample_deletion_proposal()}
+        move_prob_dict = {'create': lambda x: x.probability_of_sampling_a_create_proposal,
+                          'delete': lambda x: x.probability_of_sampling_a_delete_proposal,
+                          }
+
+        assert (len(move_sampler_dict) == 2)
+
+        move, reverse_move = ('create', 'delete')
+
+        p_create = self.probability_of_sampling_a_create_proposal
+        if np.random.rand() <= p_create:
+            p_forward = p_create
+        else:
+            p_forward = 1.0 - p_create
+            move, reverse_move = (reverse_move, move)
+
+        assert (p_forward > 0)
+
+        proposal = move_sampler_dict[move](self)
+        p_reverse = move_prob_dict[reverse_move](proposal)
+        log_prob_forward_over_reverse = np.log(p_forward / p_reverse)
+
+        assert (np.isfinite(log_prob_forward_over_reverse))
+        assert (log_prob_forward_over_reverse <= 0.0)
+
+        proposal['log_prob_forward_over_reverse'] += log_prob_forward_over_reverse
+
+        return proposal
 
     def sample_radius_perturbation_proposal(self):
         """Pick a type at random and propose to perturb its radius slightly"""
