@@ -329,7 +329,7 @@ def tree_rjmc(initial_tree, log_prob_func, n_iterations=1000, fraction_cross_mod
 
         log_acceptance_probability = min(0.0, log_p_new_over_old - proposal_dict['log_prob_forward_over_reverse'])
         log_acceptance_probabilities.append(log_acceptance_probability)
-        acceptance_probability = min(1.0, np.exp(log_acceptance_probability))
+        acceptance_probability = np.exp(log_acceptance_probability)
         if np.random.rand() < acceptance_probability:
             trees.append(proposal_dict['proposal'])
             log_probs.append(log_prob_proposal)
