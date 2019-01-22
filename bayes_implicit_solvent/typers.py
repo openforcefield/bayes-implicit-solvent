@@ -8,6 +8,7 @@ from simtk import unit
 from bayes_implicit_solvent.smarts import atomic_number_dict
 from bayes_implicit_solvent.utils import smarts_to_subsearch, convert_to_unitd_array
 
+RADIUS_UNIT = unit.nanometer
 
 class DiscreteProposal():
     def sample(self, initial):
@@ -407,7 +408,7 @@ class GBTypingTree():
         """Get the "radius" properties for all nodes as an array"""
         radii = np.zeros(self.number_of_nodes)
         for i in range(self.number_of_nodes):
-            radii[i] = self.get_radius(self.ordered_nodes[i]) / unit.nanometer
+            radii[i] = self.get_radius(self.ordered_nodes[i]) / RADIUS_UNIT
         return radii
 
     def set_radius(self, smirks, radius):
@@ -442,8 +443,8 @@ class GBTypingTree():
         # compute the log ratio of forward and reverse proposal probabilities
         # TODO: accumulate these properties in a less manual / error-prone way
         delta_radius = proposal_radius - parent_radius
-        delta = delta_radius / delta_radius.unit
-        sigma = self.proposal_sigma / delta_radius.unit
+        delta = delta_radius / RADIUS_UNIT
+        sigma = self.proposal_sigma / RADIUS_UNIT
 
         log_prob_forward = - np.log(self.number_of_decorate_able_nodes) \
                            + norm.logpdf(delta, loc=0, scale=sigma)
@@ -480,8 +481,8 @@ class GBTypingTree():
         leaf_radius = self.get_radius(leaf_to_delete)
         parent_radius = self.get_radius(parent)
         delta_radius = leaf_radius - parent_radius
-        delta = delta_radius / delta_radius.unit
-        sigma = self.proposal_sigma / delta_radius.unit
+        delta = delta_radius / RADIUS_UNIT
+        sigma = self.proposal_sigma / RADIUS_UNIT
 
         log_prob_reverse = norm.logpdf(delta, loc=0, scale=sigma)
         log_prob_reverse += - np.log(proposal.number_of_decorate_able_nodes)
@@ -530,7 +531,7 @@ class GBTypingTree():
                 lines.append('  ' * (depth_dict[n] - 1) + prefix + n)
             else:
                 lines.append(n)
-            radii.append('(r = {:.5} nm)'.format(str(self.get_radius(n) / unit.nanometer)))
+            radii.append('(r = {:.5} nm)'.format(str(self.get_radius(n) / RADIUS_UNIT)))
 
         max_length = max(np.array(list(map(len, lines))) + np.array(list(map(len, radii))))
         width = max_length + 4

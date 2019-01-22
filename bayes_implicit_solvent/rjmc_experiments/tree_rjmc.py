@@ -42,13 +42,10 @@ for smiles in smiles_subset:
     print('thinned vacuum_traj from {} to {}'.format(len(vacuum_traj), len(mol.vacuum_traj)))
     mols.append(mol)
 
-
-def remove_unit(unitd_quantity):
-    """TODO: fix mol.log_prior function so this step isn't necessary"""
-    return unitd_quantity / unitd_quantity.unit
-
 from bayes_implicit_solvent.prior_checking import check_no_empty_types
 error_y_trees = []
+
+from bayes_implicit_solvent.typers import RADIUS_UNIT
 
 def log_prob(tree):
     log_prior = check_no_empty_types(tree)
@@ -56,7 +53,7 @@ def log_prob(tree):
     if log_prior > -np.inf:
         try:
             # TODO: Parallelize. Note that multiprocessing.Pool won't work here because it doesn't play nice with SwigPy objects
-            log_prob_components = [mol.log_prob(remove_unit(tree.assign_radii(mol.mol))) for mol in mols]
+            log_prob_components = [mol.log_prob(tree.assign_radii(mol.mol) / RADIUS_UNIT) for mol in mols]
             log_posterior = sum(log_prob_components)
         except:
             global error_y_trees
