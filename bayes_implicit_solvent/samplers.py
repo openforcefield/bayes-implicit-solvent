@@ -319,17 +319,22 @@ def tree_rjmc(initial_tree, log_prob_func, n_iterations=1000, fraction_cross_mod
 
     trange = tqdm(range(n_iterations))
     for _ in trange:
+
+        # try either a within-model proposal or cross-model proposal
         if np.random.rand() < fraction_cross_model_proposals:
             proposal_dict = trees[-1].sample_create_delete_proposal()
-
         else:
             proposal_dict = trees[-1].sample_radius_perturbation_proposal()
+
+        # compute p(x') and p(x')/p(x)
         log_prob_proposal = log_prob_func(proposal_dict['proposal'])
         log_p_new_over_old = log_prob_proposal - log_probs[-1]
 
+        # compute acceptance probability, including proposal asymmetry p(x'|x)/p(x|x')
         log_acceptance_probability = min(0.0, log_p_new_over_old - proposal_dict['log_prob_forward_over_reverse'])
-        log_acceptance_probabilities.append(log_acceptance_probability)
         acceptance_probability = np.exp(log_acceptance_probability)
+
+        # accept or reject
         if np.random.rand() < acceptance_probability:
             trees.append(proposal_dict['proposal'])
             log_probs.append(log_prob_proposal)
@@ -337,6 +342,8 @@ def tree_rjmc(initial_tree, log_prob_func, n_iterations=1000, fraction_cross_mod
             trees.append(trees[-1])
             log_probs.append(log_probs[-1])
 
+        # update trace and progress bar
+        log_acceptance_probabilities.append(log_acceptance_probability)
         trange.set_postfix({'avg. accept. prob.': np.mean(np.exp(log_acceptance_probabilities)),
                             'log posterior': log_probs[-1],
                             '# GB types': trees[-1].number_of_nodes,
