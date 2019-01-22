@@ -1,8 +1,8 @@
 import mdtraj as md
 import numpy as np
 from pkg_resources import resource_filename
-from tqdm import tqdm
 
+from bayes_implicit_solvent.constants import RADIUS_UNIT
 from bayes_implicit_solvent.molecule import Molecule
 from bayes_implicit_solvent.smarts import atomic_number_dict
 from bayes_implicit_solvent.solvation_free_energy import smiles_list
@@ -43,9 +43,9 @@ for smiles in smiles_subset:
     mols.append(mol)
 
 from bayes_implicit_solvent.prior_checking import check_no_empty_types
+
 error_y_trees = []
 
-from bayes_implicit_solvent.typers import RADIUS_UNIT
 
 def log_prob(tree):
     log_prior = check_no_empty_types(tree)
@@ -65,13 +65,15 @@ def log_prob(tree):
     else:
         return log_prior
 
+
 from bayes_implicit_solvent.samplers import tree_rjmc
 from pickle import dump
 
 n_iterations = 200000
 
 result = tree_rjmc(initial_tree, log_prob, n_iterations=n_iterations)
-with open('elaborate_tree_rjmc_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(smiles_subset), n_iterations) , 'wb') as f:
+with open('elaborate_tree_rjmc_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(smiles_subset), n_iterations),
+          'wb') as f:
     dump(result, f)
 
 with open('error_y_trees.pkl', 'wb') as f:

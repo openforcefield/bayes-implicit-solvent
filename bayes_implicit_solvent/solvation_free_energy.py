@@ -1,8 +1,8 @@
 import numpy as np
 import pymbar
 from pkg_resources import resource_filename
-from bayes_implicit_solvent.utils import apply_radii_to_GB_force
 
+from bayes_implicit_solvent.utils import apply_radii_to_GB_force
 from bayes_implicit_solvent.utils import get_gbsa_force, get_nb_force
 
 path_to_freesolv = resource_filename('bayes_implicit_solvent', 'data/FreeSolv-0.51/database.txt')
@@ -34,12 +34,10 @@ from simtk import unit
 from tqdm import tqdm
 from openmmtools.integrators import BAOABIntegrator
 
-from openmmtools.constants import kB
-
-temperature = 298.15 * unit.kelvin
 stepsize = 1.0 * unit.femtosecond
 collision_rate = 1.0 / unit.picosecond
-beta = 1.0 / (kB * temperature)
+
+from bayes_implicit_solvent.constants import temperature, beta
 
 
 def construct_gbsa_force(system):

@@ -7,8 +7,7 @@ from simtk import unit
 
 from bayes_implicit_solvent.smarts import atomic_number_dict
 from bayes_implicit_solvent.utils import smarts_to_subsearch, convert_to_unitd_array
-
-RADIUS_UNIT = unit.nanometer
+from bayes_implicit_solvent.constants import RADIUS_UNIT
 
 class DiscreteProposal():
     def sample(self, initial):

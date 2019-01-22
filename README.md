@@ -12,6 +12,7 @@ experiments with Bayesian calibration of implicit solvent models
 * `solvation_free_energy.py` -- functions for computing solvation free energy using GB models
 * `typers.py` -- defines the following classes: `DiscreteProposal`, `BondProposal`, `AtomSpecificationProposal`, `BondSpecificationProposal`, `SMIRKSElaborationProposal`, `SMARTSTyper`, `FlatGBTyper`, `GBTypingTree`, which hopefully encapsulate the bookkeeping needed to sample typing schemes using RJMC
 * `utils.py` -- un-filed utilities for: interacting with OpenEye, getting or applying GB parameters in OpenMM systems, caching substructure matches
+* `constants.py` -- temperature, unit conventions, etc.
 
 (Currently contains some code that needs to be removed or refactored. `proposals.py` defines the following classes: `Proposal`, `RadiusInheritanceProposal`, `AddOrDeletePrimitiveAtEndOfList`, `AddOrDeletePrimitiveAtRandomPositionInList`, `SwapTwoPatterns`, `MultiProposal`, which were used in initial experiments that did not use a tree representation of the typing scheme. `prepare_freesolv.py` uses OpenEye to construct OEMol objects, assign partial charges, etc. starting from a list of SMILES strings.)
 
