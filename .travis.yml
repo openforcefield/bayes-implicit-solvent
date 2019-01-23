@@ -30,18 +30,12 @@ before_install:
   - python -V
 
 install:
-{% if cookiecutter.dependency_source == 'Dependencies from pip only (no conda)' %}
-    # Install the package locally
-  - pip install -U pytest pytest-cov codecov
-  - pip install -e .
-{% else %}
     # Create test environment for package
   - python devtools/scripts/create_conda_env.py -n=test -p=$PYTHON_VER devtools/conda-envs/test_env.yaml
     # Activate the test environment
   - conda activate test
     # Build and install package
   - python setup.py develop --no-deps
-{% endif %}
 
 script:
   - pytest -v --cov=bayes_implicit_solvent bayes_implicit_solvent/tests/
