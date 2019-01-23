@@ -1,9 +1,21 @@
 name: test
 channels:
+  - openeye
+  - conda-forge
+  - omnia
 dependencies:
     # Base depends
   - python
   - pip
+  - setuptools
+  - networkx
+  - tqdm
+  - numpy
+  - matplotlib
+  - openeye-toolkits
+  - openmmtools
+  - autograd
+  - scipy
 
     # Testing
   - pytest

@@ -16,7 +16,7 @@ requirements:
     - tqdm
     - numpy
     - matplotlib
-    - openeye
+    - openeye-toolkits
     - openmmtools
     - autograd
     - scipy
