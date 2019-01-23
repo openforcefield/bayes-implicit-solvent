@@ -20,6 +20,7 @@ requirements:
     - openmmtools
     - autograd
     - scipy
+    - pymbar
 
   run:
     - python

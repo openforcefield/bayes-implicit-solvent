@@ -16,6 +16,7 @@ dependencies:
   - openmmtools
   - autograd
   - scipy
+  - pymbar
 
     # Testing
   - pytest
