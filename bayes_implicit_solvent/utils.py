@@ -34,19 +34,19 @@ def get_charges(system):
         [nb_force.getParticleParameters(i)[0] / unit.elementary_charge for i in range(nb_force.getNumParticles())])
 
 
-def apply_radii_to_GB_force(radii, gb_force):
-    """Given an array of radii, of length = gb_force.getNumParameters(),
-    overwrite the per-particle radii parameters of gb_force.
-    Retain charges, set scalingFactors to 1.0.
+def apply_per_particle_params_to_GB_force(radii, scale_factors, gb_force):
+    """Given arrays of radii and scale_factors,
+    each of length = gb_force.getNumParameters(),
+    overwrite the per-particle radius and scalingFactor parameters of gb_force.
+    (Retain charges.)
     """
-    # TODO: Don't reset scalingFactor to 1.0.
 
     for i in range(len(radii)):
         charge = gb_force.getParticleParameters(i)[0]
         gb_force.setParticleParameters(index=i,
                                        charge=charge,
                                        radius=radii[i],
-                                       scalingFactor=1.0,
+                                       scalingFactor=scale_factors[i],
                                        )
 
 

@@ -2,7 +2,7 @@ import numpy as np
 import pymbar
 from pkg_resources import resource_filename
 
-from bayes_implicit_solvent.utils import apply_radii_to_GB_force
+from bayes_implicit_solvent.utils import apply_per_particle_params_to_GB_force
 from bayes_implicit_solvent.utils import get_gbsa_force, get_nb_force
 
 path_to_freesolv = resource_filename('bayes_implicit_solvent', 'data/FreeSolv-0.51/database.txt')
@@ -168,19 +168,21 @@ def get_implicit_u_diffs(implicit_sim, samples):
     return u_diff
 
 
-def predict_solvation_free_energy(implicit_sim, radii, vacuum_traj):
+def predict_solvation_free_energy(implicit_sim, vacuum_traj, radii, scaling_factors):
     """Apply one-sided EXP to estimate GBSA-predicted solvation free energy at the specified Born radii, given vacuum samples.
 
     Parameters
     ----------
+
     implicit_sim : OpenMM Simulation
         simulation object containing the implicit solvent force in force-group 0, and all other forces in other force-groups...
-
-    radii : array of floats, unit'd or assumed to be in nanometers
-        Born radii for all atoms
-
     vacuum_traj : [n_samples x n_atoms x 3] array of floats, unit'd or assumed to be in nanometers
         collection of samples drawn from equilibrium for a system identical to implicit_sim, minus the GBSA force
+    radii : array of floats, unit'd or assumed to be in nanometers
+        Born radii for all atoms
+    scaling_factors : array of floats
+        scalingFactors for all atoms
+
 
     Returns
     -------
@@ -193,7 +195,7 @@ def predict_solvation_free_energy(implicit_sim, radii, vacuum_traj):
     gb_force = get_gbsa_force(implicit_sim.context.getSystem())
     # TODO: Check occasionally that the force group partition matches expectation?
 
-    apply_radii_to_GB_force(radii, gb_force)
+    apply_per_particle_params_to_GB_force(radii, scaling_factors, gb_force)
     gb_force.updateParametersInContext(implicit_sim.context)
     u_diffs = get_implicit_u_diffs(implicit_sim, vacuum_traj)
     mean, uncertainty = pymbar.EXP(u_diffs)
