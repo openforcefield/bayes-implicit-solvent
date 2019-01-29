@@ -47,7 +47,11 @@ def methane_demo(n_configuration_samples=10, n_parameter_samples=100000):
         atomic_radii = np.zeros(len(mol.pos))
         atomic_radii[0] = radii[0]
         atomic_radii[1:] = radii[1]
-        return mol.log_prob(atomic_radii)
+
+        # TODO: update this example to allow the scaling_factors to be variable also
+        default_scaling_factors = np.ones(len(radii))
+
+        return mol.log_prob(atomic_radii, default_scaling_factors)
 
     radii0 = np.array([0.1, 0.1])
 
@@ -87,7 +91,11 @@ def alkanes_demo(n_configuration_samples=100, n_parameter_samples=10000):
             mol = mols[i]
             atomic_radii = np.ones(len(mol.pos)) * radii[0]
             atomic_radii[hydrogens[i]] = radii[1]
-            logp += mol.log_prob(atomic_radii)
+
+            # TODO: update this example to allow the scaling_factors to be variable also
+            default_scaling_factors = np.ones(len(mol.pos))
+            logp += mol.log_prob(atomic_radii, default_scaling_factors)
+
         return logp
 
     radii0 = np.array([0.1, 0.1])
@@ -133,7 +141,11 @@ def quarter_freesolv_demo(n_configuration_samples=10, n_parameter_samples=10000)
             mol = mols[i]
             atomic_radii = np.ones(len(mol.pos)) * radii[0]
             atomic_radii[hydrogens[i]] = radii[1]
-            logp += mol.log_prob(atomic_radii)
+
+            # TODO: update this example to allow the scaling_factors to be variable also
+            default_scaling_factors = np.ones(len(mol.pos))
+            logp += mol.log_prob(atomic_radii, default_scaling_factors)
+
         return logp
 
     radii0 = np.array([0.1, 0.1])
@@ -176,7 +188,11 @@ def freesolv_demo(n_configuration_samples=10, n_parameter_samples=10000):
             mol = mols[i]
             atomic_radii = np.ones(len(mol.pos)) * radii[0]
             atomic_radii[hydrogens[i]] = radii[1]
-            logp += mol.log_prob(atomic_radii)
+
+            # TODO: update this example to allow the scaling_factors to be variable also
+            default_scaling_factors = np.ones(len(mol.pos))
+            logp += mol.log_prob(atomic_radii, default_scaling_factors)
+
         return logp
 
     radii0 = np.array([0.1, 0.1])

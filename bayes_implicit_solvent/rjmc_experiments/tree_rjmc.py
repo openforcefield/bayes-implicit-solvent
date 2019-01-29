@@ -53,7 +53,8 @@ def log_prob(tree):
     if log_prior > -np.inf:
         try:
             # TODO: Parallelize. Note that multiprocessing.Pool won't work here because it doesn't play nice with SwigPy objects
-            log_prob_components = [mol.log_prob(tree.assign_radii(mol.mol) / RADIUS_UNIT) for mol in mols]
+            # TODO: update to allow scale factors to be variable also
+            log_prob_components = [mol.log_prob(tree.assign_radii(mol.mol) / RADIUS_UNIT, np.ones(mol.n_atoms)) for mol in mols]
             log_posterior = sum(log_prob_components)
         except:
             global error_y_trees

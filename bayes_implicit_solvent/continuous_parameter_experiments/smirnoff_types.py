@@ -96,7 +96,8 @@ radii0 = np.ones(typer.number_of_nodes) * 0.1
 
 def log_prob(radii):
     """Fixed typing scheme, only radii"""
-    return sum([mols[i].log_prob(radii[type_assignments[i]]) for i in range(len(mols))])
+    # TODO: Update example to allow variable scale-factors also
+    return sum([mols[i].log_prob(radii[type_assignments[i]], np.ones(len(type_assignments[i]))) for i in range(len(mols))])
 
 
 traj, log_probs, acceptance_fraction = sparse_mh(radii0, log_prob, n_steps=10000, dim_to_perturb=1, stepsize=0.01)
