@@ -208,8 +208,8 @@ if __name__ == '__main__':
     np.random.seed(0)
 
     smiles = 'C'
-    mol = Molecule(smiles)
-    n = len(mol.pos)
+    mol = Molecule(smiles, n_samples=10, thinning=1000)
+    n = 2
     radii0 = np.ones(n)
     scaling_factors0 = np.ones(n)
     theta0 = np.hstack([radii0, scaling_factors0])
@@ -217,8 +217,16 @@ if __name__ == '__main__':
 
 
     def unpack(theta):
-        radii = theta[:n]
-        scaling_factors = theta[n:]
+        _radii = theta[:n]
+        radii = np.zeros(mol.n_atoms)
+        radii[0] = _radii[0]
+        radii[1:] = _radii[1]
+
+        _scaling_factors = theta[n:]
+        scaling_factors = np.zeros(mol.n_atoms)
+        scaling_factors[0] = _scaling_factors[0]
+        scaling_factors[1:] = _scaling_factors[1]
+
         return radii, scaling_factors
 
 
@@ -235,6 +243,7 @@ if __name__ == '__main__':
     np.save(os.path.join(data_path, 'radii_samples_{}.npy'.format(smiles)), traj[:, :n])
     np.save(os.path.join(data_path, 'scale_samples_{}.npy'.format(smiles)), traj[:, n:])
     np.save(os.path.join(data_path, 'theta_samples_{}.npy'.format(smiles)), traj)
+    np.save(os.path.join(data_path, 'log_probs_{}.npy'.format(smiles)), log_probs)
 
     print(acceptance_fraction)
     print('atom_names: ', mol.atom_names)
