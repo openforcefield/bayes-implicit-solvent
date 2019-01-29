@@ -2,12 +2,12 @@ import numpy as np
 from scipy.stats import t as student_t
 from simtk import unit
 
+from bayes_implicit_solvent.constants import min_r, max_r, min_scale, max_scale
 from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_energy, \
     get_vacuum_samples, db, smiles_list, mol_top_sys_pos_list, create_implicit_sim, beta
 
+
 # TODO: maybe expose these parameters, if we need this not to be hard-coded...
-
-
 
 
 class Molecule():
@@ -113,13 +113,16 @@ class Molecule():
 
         self.log_prob_cache = dict()
 
-    def predict_solvation_free_energy(self, radii):
+    def predict_solvation_free_energy(self, radii, scaling_factors):
         """Use one-sided EXP to predict the solvation free energy using this set of radii
 
         Parameters
         ----------
+        scaling_factors
         radii : array of floats, either unit'd or assumed to be in nanometers
             radius parameters for each atom
+        scaling_factors : array of floats
+            scalingFactors for each atom
 
         Returns
         -------
@@ -127,9 +130,10 @@ class Molecule():
         uncertainty : float
         """
         assert (len(radii) == self.n_atoms)
-        return predict_solvation_free_energy(self.implicit_sim, radii, self.vacuum_traj)
+        assert (len(scaling_factors) == self.n_atoms)
+        return predict_solvation_free_energy(self.implicit_sim, self.vacuum_traj, radii, scaling_factors)
 
-    def gaussian_log_likelihood(self, radii):
+    def gaussian_log_likelihood(self, radii, scaling_factors):
         """Un-normalized log-likelihood using Gaussian located at experimentally measured value, with
         scale set by the estimated experimental error.
 
@@ -139,60 +143,64 @@ class Molecule():
 
         N(mean_sim | mu = mean_expt,
                      sigma^2 = sigma_expt * max(sigma_expt, sigma_sim)
-
-
         """
-        simulation_mean, simulation_uncertainty = self.predict_solvation_free_energy(radii)
+        simulation_mean, simulation_uncertainty = self.predict_solvation_free_energy(radii, scaling_factors)
 
         mu = self.experimental_value
         sigma2 = self.experimental_uncertainty * max([self.experimental_uncertainty, simulation_uncertainty])
 
         return - (simulation_mean - mu) ** 2 / sigma2
 
-    def log_likelihood(self, radii):
+    def log_likelihood(self, radii, scaling_factors):
         """To be more robust to inaccurate statement of `experimental_uncertainty`, favor a Student-t likelihood
         over a Gaussian likelihood. This also corresponds to using a nuisance parameter for the experimental uncertainty (with
         an inverse-Gamma prior?) and marginalizing it out.
 
         TODO: Gelman reference
         """
-        simulation_mean, simulation_uncertainty = self.predict_solvation_free_energy(radii)
+        simulation_mean, simulation_uncertainty = self.predict_solvation_free_energy(radii, scaling_factors)
 
         mu = self.experimental_value
         sigma = np.sqrt(self.experimental_uncertainty * max([self.experimental_uncertainty, simulation_uncertainty]))
 
         return student_t.logpdf(simulation_mean, loc=mu,
-                                scale=sigma, # TODO: Look up how best to put scale information here
-                                df=7) # TODO: Decide what to use for the degrees of freedom parameter
+                                scale=sigma,  # TODO: Look up how best to put scale information here
+                                df=7)  # TODO: Decide what to use for the degrees of freedom parameter
 
-    def log_prior(self, radii):
-        """Un-normalized log-prior: uniform in [0.01, 1.0]^n_atoms"""
-        min_r, max_r = 0.01, 1.0
-        dim = len(radii)
-        if (np.min(radii) < min_r) or (np.max(radii) > max_r):
+    def bounds_check(self, radii, scale_factors):
+        """Check whether parameters are in bounds (radii in (max_r, min_r),
+        scale_factors in (min_scale, max_scale)
+        """
+        # TODO: refactor to have a parameter object that knows how to check its own bounds
+        if (np.min(radii) < min_r) or (np.max(radii) > max_r) or \
+                (np.min(scale_factors) < min_scale) or (np.max(scale_factors) > max_scale):
+            return False
+        else:
+            return True
+
+    def log_prob_uncached(self, radii, scale_factors):
+        """Un-normalized log-probability : log-likelihood, if log-prior > -infty
+        """
+        if self.bounds_check(radii, scale_factors):
+            # ll = self.log_likelihood(radii, scale_factors)  # TODO: Switch back to Student-t?
+            ll = self.gaussian_log_likelihood(radii, scale_factors)
+            return ll
+        else:
             return - np.inf
-        else:
-            return dim * np.log(max_r - min_r)  # uniform prior, normalized
 
-    def log_prob_uncached(self, radii):
-        """Un-normalized log-probability : log-prior + log-likelihood"""
-        prior = self.log_prior(radii)
-        if prior > -np.inf:
-            #ll = self.log_likelihood(radii)  # TODO: Switch back to Student-t?
-            ll = self.gaussian_log_likelihood(radii)
-            return prior + ll
-        else:
-            return prior
-
-    def log_prob(self, radii):
+    def log_prob(self, radii, scaling_factors):
         r_tuple = tuple(radii)
+        s_tuple = tuple(scaling_factors)
+        theta_tuple = r_tuple + s_tuple
+        # TODO: replace with a parameter object that knows how to hash itself
 
         # TODO: Replace dictionary (whose memory footprint will keep increasing throughout)
         # the object's lifetime) with deque
-        if r_tuple not in self.log_prob_cache:
-            self.log_prob_cache[r_tuple] = self.log_prob_uncached(radii)
+        if theta_tuple not in self.log_prob_cache:
+            self.log_prob_cache[theta_tuple] = self.log_prob_uncached(radii, scaling_factors)
 
-        return self.log_prob_cache[r_tuple]
+        return self.log_prob_cache[theta_tuple]
+
 
 if __name__ == '__main__':
     from bayes_implicit_solvent.samplers import random_walk_mh
@@ -201,14 +209,32 @@ if __name__ == '__main__':
 
     smiles = 'C'
     mol = Molecule(smiles)
-    radii0 = np.ones(len(mol.pos))
+    n = len(mol.pos)
+    radii0 = np.ones(n)
+    scaling_factors0 = np.ones(n)
+    theta0 = np.hstack([radii0, scaling_factors0])
+    assert (len(theta0) == 2 * n)
 
-    traj, log_probs, acceptance_fraction = random_walk_mh(radii0, mol.log_prob,
+
+    def unpack(theta):
+        radii = theta[:n]
+        scaling_factors = theta[n:]
+        return radii, scaling_factors
+
+
+    def L(theta):
+        radii, scaling_factors = unpack(theta)
+        return mol.log_prob(radii, scaling_factors)
+
+
+    traj, log_probs, acceptance_fraction = random_walk_mh(theta0, L,
                                                           n_steps=100000, stepsize=0.01)
     import os.path
 
     data_path = 'data/'
-    np.save(os.path.join(data_path, 'radii_samples_{}.npy'.format(smiles)), traj)
+    np.save(os.path.join(data_path, 'radii_samples_{}.npy'.format(smiles)), traj[:, :n])
+    np.save(os.path.join(data_path, 'scale_samples_{}.npy'.format(smiles)), traj[:, n:])
+    np.save(os.path.join(data_path, 'theta_samples_{}.npy'.format(smiles)), traj)
 
     print(acceptance_fraction)
     print('atom_names: ', mol.atom_names)
