@@ -74,11 +74,14 @@ def test_atom_specification_proposal(n_tests=50):
 from simtk import unit
 from scipy.stats import multivariate_normal
 
-
-def test_uniform_sampling(depth_cutoff=2, n_iterations=5000):
+@pytest.mark.slow
+def test_uniform_sampling(depth_cutoff=2, n_iterations=100000):
     """Test that a sampler targeting these discrete structures and associated continuous parameters jointly
     obtains a uniform distribution over bounded-depth trees when appropriate.
-    To do this, we ensure that each discrete tree has the same normalizing constant (namely, 1)."""
+    To do this, we ensure that each discrete tree has the same normalizing constant (namely, 1).
+
+    # TODO: Choice of continuous distribution is arbitrary, as long as normalized. May switch to uniform instead of Gaussian.
+    """
 
     np.random.seed(0)
 
@@ -141,7 +144,7 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=5000):
     traj = result['traj']
     string_representations = list(map(str, traj))
     print('number of distinct sampled models (as reflected in string representation)', len(set(string_representations)))
-    for s in sorted(list(set(string_representations))):
+    for s in list(set(string_representations))[:5]:
         print(s)
 
     discrete_models = [tuple(t.ordered_nodes[2:]) for t in traj]
@@ -160,5 +163,6 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=5000):
     print('expected_length_distribution', expected_length_distribution)
     print('actual_length_distribution', actual_length_distribution)
 
-    assert (np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-2))
+    # TODO: Replace arbitrary rtol with a statistical test
+    assert (np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-1))
     return result
