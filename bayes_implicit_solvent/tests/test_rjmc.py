@@ -121,16 +121,19 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=100000):
         no_duplicates = (len(set(tree.nodes)) == N_nodes)
         within_depth_limit = (max(nx.shortest_path_length(tree.G, source='*').values()) <= depth_cutoff)
         if no_duplicates and within_depth_limit:
-            mean_vector = 0.1 * np.ones(N_nodes) # a length-N_nodes vector of 0.1's
+            mean_vector = np.ones(N_nodes) # a length-N_nodes vector of 1's
             tree_radii = tree.get_radii() # a length-N_nodes vector of the radii associated with nodes in the tree
             return multivariate_normal.logpdf(x=tree_radii, mean=mean_vector)
         else:
             return - np.inf
-
+    np.random.seed(0)
     result = tree_rjmc(initial_tree, log_prob,
                        n_iterations=n_iterations,
                        fraction_cross_model_proposals=0.5,
                        )
+    radii = [tree.get_radii() for tree in result['traj']]
+
+    np.save('sampled_radii.npy', radii)
 
     print('number of possible distinct discrete trees at each length',
           list(zip(range(len(number_of_trees_at_each_length)), number_of_trees_at_each_length)))
@@ -163,6 +166,27 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=100000):
     print('expected_length_distribution', expected_length_distribution)
     print('actual_length_distribution', actual_length_distribution)
 
-    # TODO: Replace arbitrary rtol with a statistical test
+    # TODO: Replace arbitrary rtol with a chi-squared test
     assert (np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-1))
+
+    from scipy.stats import kstest
+
+    threshold = 0.001
+    for i in range(max(lengths)):
+        rvs = np.array([r[i] for r in radii if len(r) > i])
+
+        # check that we're not producing mean-zero Gaussian values
+        kstest_result = kstest(rvs[::20], 'norm')
+        pvalue_should_be_under_threshold = kstest_result.pvalue
+
+
+        assert (pvalue_should_be_under_threshold < threshold)
+
+        # check that we're producing mean 1.0 Gaussian values
+        from scipy.stats import norm
+        kstest_result = kstest(rvs[::20], norm(loc=1.0).cdf)
+        pvalue_should_be_over_threshold = kstest_result.pvalue
+
+        assert (pvalue_should_be_over_threshold > threshold)
+
     return result
