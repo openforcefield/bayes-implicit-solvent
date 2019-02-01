@@ -86,7 +86,8 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=100000):
     np.random.seed(0)
 
     # specifiers = ['X1', 'X2', 'X3']
-    specifiers = ['X1']
+    specifiers = ['X1', 'X2']
+    # specifiers = ['X1']
 
     # TODO: Set up testing fixtures with different numbers of specifiers, depth_cutoffs, etc.
 
@@ -155,28 +156,30 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=100000):
     for d in distinct_discrete_models:
         print(d)
     print("number of distinct sampled models (as reflected in choice of smirks)", len(distinct_discrete_models))
+    thinning = 20
+    lengths = np.array([len(d) for d in discrete_models[::thinning]])
 
-    lengths = np.array([len(d) for d in discrete_models])
-
-    expected_length_distribution = np.array(number_of_trees_at_each_length) / np.sum(number_of_trees_at_each_length)
+    expected_length_distribution = len(lengths) * (np.array(number_of_trees_at_each_length) / np.sum(number_of_trees_at_each_length))
     actual_length_distribution = np.zeros(len(expected_length_distribution))
     for t in range(len(expected_length_distribution)):
         actual_length_distribution[t] += sum(lengths == t)
-    actual_length_distribution /= np.sum(actual_length_distribution)
     print('expected_length_distribution', expected_length_distribution)
     print('actual_length_distribution', actual_length_distribution)
 
-    # TODO: Replace arbitrary rtol with a chi-squared test
-    assert (np.allclose(expected_length_distribution, actual_length_distribution, rtol=1e-1))
+    threshold = 0.001
+
+    from scipy.stats import chisquare
+    chi2_result = chisquare(f_obs=actual_length_distribution, f_exp=expected_length_distribution)
+    print(chi2_result)
+    assert (chi2_result.pvalue > threshold)
 
     from scipy.stats import kstest
 
-    threshold = 0.001
     for i in range(max(lengths)):
         rvs = np.array([r[i] for r in radii if len(r) > i])
 
         # check that we're not producing mean-zero Gaussian values
-        kstest_result = kstest(rvs[::20], 'norm')
+        kstest_result = kstest(rvs[::thinning], 'norm')
         pvalue_should_be_under_threshold = kstest_result.pvalue
 
 
@@ -184,7 +187,7 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=100000):
 
         # check that we're producing mean 1.0 Gaussian values
         from scipy.stats import norm
-        kstest_result = kstest(rvs[::20], norm(loc=1.0).cdf)
+        kstest_result = kstest(rvs[::thinning], norm(loc=1.0).cdf)
         pvalue_should_be_over_threshold = kstest_result.pvalue
 
         assert (pvalue_should_be_over_threshold > threshold)
