@@ -236,7 +236,7 @@ if __name__ == '__main__':
 
 
     traj, log_probs, acceptance_fraction = random_walk_mh(theta0, L,
-                                                          n_steps=100000, stepsize=0.01)
+                                                          n_steps=1000000, stepsize=0.02)
     import os.path
 
     data_path = 'data/'
@@ -248,4 +248,6 @@ if __name__ == '__main__':
     print(acceptance_fraction)
     print('atom_names: ', mol.atom_names)
 
-    # posterior_predictions = [mol.predict_solvation_free_energy(r)[0] for r in traj[::100]]
+    posterior_predictions = [mol.predict_solvation_free_energy(*unpack(theta))[0] for theta in traj[::100]]
+
+    np.save(os.path.join(data_path, 'posterior_predictions_{}.npy'.format(smiles)), posterior_predictions)
