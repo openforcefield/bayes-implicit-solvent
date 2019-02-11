@@ -40,6 +40,7 @@ charges = []
 distance_matrices = []
 expt_means = []
 expt_uncs = []
+vacuum_trajs = []
 
 n_configuration_samples = 10  # TODO: Since this is cheaper, can probably modify this a bit...
 
@@ -62,6 +63,7 @@ for smiles in smiles_subset:
     vacuum_traj = md.load(path_to_vacuum_samples)
     thinning = int(len(vacuum_traj) / n_configuration_samples)
     mol.vacuum_traj = mdtraj_to_list_of_unitted_snapshots(vacuum_traj[::thinning])
+    vacuum_trajs.append(mol.vacuum_traj)
     print('thinned vacuum_traj from {} to {}'.format(len(vacuum_traj), len(mol.vacuum_traj)))
 
     expt_means.append(mol.experimental_value)
@@ -78,7 +80,7 @@ from autograd.scipy.stats import t as student_t
 from autograd import grad
 from autograd.scipy.misc import logsumexp
 from simtk import unit
-from bayes_implicit_solvent.solvation_free_energy import kB, temperature
+from bayes_implicit_solvent.constants import kB, temperature
 
 kj_mol_to_kT = 1.0 * unit.kilojoule_per_mole / (kB * temperature)
 
@@ -125,11 +127,6 @@ def construct_arrays(theta):
 
 from bayes_implicit_solvent.numpy_gb_models import compute_OBC_energy_vectorized
 
-from multiprocessing import Pool
-
-n_processes = 4
-pool = Pool(n_processes)
-
 
 def log_prob_component(i, theta):
     radii, scales = construct_array(i, theta)
@@ -173,64 +170,75 @@ def log_prob(theta):
 
 # def log_prob(theta):
 #    return sum(map(lambda i: log_prob_component(i, theta), range(len(mols))))
-from functools import partial
-
-
-def parallel_log_prob(theta):
-    return sum(pool.map(partial(log_prob_component, theta=theta), range(len(mols))))
-
-
-def parallel_grad_log_prob(theta):
-    """Use autograd to compute the gradient of each term separately, then return the sum"""
-    return sum(pool.map(partial(grad(log_prob_component, argnum=1), theta=theta), range(len(mols))))
 
 
 # 3. Take gradient of likelihood function
 
-# 4. Minimize for a few steps
-initial_radii = np.ones(len(all_elements)) * 0.12
-initial_scales = np.ones(len(all_elements)) * 0.85
+if __name__ == '__main__':
+    from multiprocessing import Pool
 
-theta0 = pack(initial_radii, initial_scales)
-print('initial theta', theta0)
-initial_log_prob = parallel_log_prob(theta0)
-print('initial log prob', log_prob(theta0))
+    n_processes = 4
+    pool = Pool(n_processes)
 
-grad_log_prob = grad(log_prob)
+    from functools import partial
 
-print('initial gradient norm = {}'.format(np.linalg.norm(grad_log_prob(theta0))))
 
-minimized_theta_fname = os.path.join(data_path,
-                                     'elemental_types_l-bfgs_freesolv_{}.npy'.format(
-                                         name))
+    def parallel_log_prob(theta):
+        log_prob_component_ = partial(log_prob_component, theta=theta)
+        return sum(pool.map(log_prob_component_, range(len(vacuum_trajs))))
 
-print('minimizing...')
-from scipy.optimize import minimize
 
-loss = lambda theta: -parallel_log_prob(theta)
-grad_loss = lambda theta: -parallel_grad_log_prob(theta)
-bounds = [(0.001, 2.0)] * len(theta0[:-1]) + [(-np.inf, np.inf)]
-result = minimize(loss, theta0,
+    def parallel_grad_log_prob(theta):
+        """Use autograd to compute the gradient of each term separately, then return the sum"""
+        grad_log_prob_component_ = partial(grad(log_prob_component, argnum=1), theta=theta)
+        return sum(pool.map(grad_log_prob_component_, range(len(vacuum_trajs))))
+
+
+    # 4. Minimize for a few steps
+    initial_radii = np.ones(len(all_elements)) * 0.12
+    initial_scales = np.ones(len(all_elements)) * 0.85
+
+    theta0 = pack(initial_radii, initial_scales)
+    print('initial theta', theta0)
+    initial_log_prob = parallel_log_prob(theta0)
+    print('initial log prob', log_prob(theta0))
+
+    #grad_log_prob = grad(log_prob)
+    grad_log_prob = parallel_grad_log_prob
+
+    print('initial gradient norm = {}'.format(np.linalg.norm(grad_log_prob(theta0))))
+
+    minimized_theta_fname = os.path.join(data_path,
+                                         'elemental_types_l-bfgs_freesolv_{}.npy'.format(
+                                             name))
+
+    print('minimizing...')
+    from scipy.optimize import minimize
+
+    loss = lambda theta: -parallel_log_prob(theta)
+    grad_loss = lambda theta: -parallel_grad_log_prob(theta)
+    bounds = [(0.001, 2.0)] * len(theta0[:-1]) + [(-np.inf, np.inf)]
+    result = minimize(loss, theta0,
                   jac=grad(loss),
                   method='L-BFGS-B',
                   bounds=bounds,
                   options={'disp': True,
                            'maxiter': 5})
 
-theta1 = result.x
-np.save(minimized_theta_fname, theta1)
-print('theta after initial minimization', theta1)
-print('gradient norm after initial minimization = {}'.format(np.linalg.norm(grad_log_prob(theta1))))
+    theta1 = result.x
+    np.save(minimized_theta_fname, theta1)
+    print('theta after initial minimization', theta1)
+    print('gradient norm after initial minimization = {}'.format(np.linalg.norm(grad_log_prob(theta1))))
 
-# 5. Run MALA
+    # 5. Run MALA
 
-stepsize = 1e-8
-n_steps = 2000
-traj, log_probs, grads, acceptance_probabilities, stepsizes = MALA(theta1, parallel_log_prob, parallel_grad_log_prob,
-                                                                   n_steps=n_steps, stepsize=stepsize,
-                                                                   adapt_stepsize=True, )
+    stepsize = 1e-8
+    n_steps = 2000
+    traj, log_probs, grads, acceptance_probabilities, stepsizes = MALA(theta1, parallel_log_prob, parallel_grad_log_prob,
+                                                                       n_steps=n_steps, stepsize=stepsize,
+                                                                       adapt_stepsize=True, )
 
-np.savez(os.path.join(data_path,
-                      'elemental_types_mala_freesolv_{}.npz'.format(
-                          name)),
-         traj=traj, grads=grads, acceptance_probabilities=acceptance_probabilities, stepsizes=stepsizes)
+    np.savez(os.path.join(data_path,
+                          'elemental_types_mala_freesolv_{}.npz'.format(
+                              name)),
+             traj=traj, grads=grads, acceptance_probabilities=acceptance_probabilities, stepsizes=stepsizes)
