@@ -31,7 +31,7 @@ np.random.seed(job_id)
 
 inds = np.arange(len(smiles_list))
 np.random.shuffle(inds)
-inds = inds[:int(len(smiles_list) * 0.05)]
+inds = inds[:int(len(smiles_list) * 0.5)]
 smiles_subset = [smiles_list[i] for i in inds]
 
 mols = []
@@ -204,7 +204,7 @@ from functools import partial
 if __name__ == '__main__':
     from multiprocessing import Pool
 
-    n_processes = 4
+    n_processes = 8
     pool = Pool(n_processes)
 
 
@@ -218,7 +218,7 @@ if __name__ == '__main__':
     print('initial log prob', log_prob(theta0))
 
     stepsize = 1e-1
-    n_steps = 1000
+    n_steps = 10000
     dim_to_perturb = 2
 
     traj, log_probs, acceptance_fraction = sparse_mh(theta0, parallel_log_prob, n_steps=n_steps, stepsize=stepsize,
