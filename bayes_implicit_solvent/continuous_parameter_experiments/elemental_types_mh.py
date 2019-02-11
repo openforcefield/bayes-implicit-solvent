@@ -200,13 +200,7 @@ def log_prob(theta):
     return logp
 
 
-def log_prob_component_factory(theta):
-    def log_prob_component_(i):
-        return log_prob_component(i, theta)
-
-    return log_prob_component_
-
-
+from functools import partial
 if __name__ == '__main__':
     from multiprocessing import Pool
 
@@ -215,8 +209,7 @@ if __name__ == '__main__':
 
 
     def parallel_log_prob(theta):
-        log_prob_component_ = log_prob_component_factory(theta)
-        return sum(pool.map(log_prob_component_, range(len(vacuum_trajs))))
+        return sum(pool.map(partial(log_prob_component, theta=theta), range(len(vacuum_trajs))))
 
 
     theta0 = pack(initial_radii, initial_scales)
