@@ -171,6 +171,15 @@ def log_prob(theta):
 # def log_prob(theta):
 #    return sum(map(lambda i: log_prob_component(i, theta), range(len(mols))))
 
+def log_prob_component_factory(theta):
+    def log_prob_component_(i):
+        return log_prob_component(i, theta)
+    return log_prob_component_
+
+def grad_log_prob_component_factory(theta):
+    def grad_log_prob_component_(i):
+        return grad(lambda theta_ : log_prob_component(i, theta_))(theta)
+    return grad_log_prob_component_
 
 # 3. Take gradient of likelihood function
 
@@ -184,13 +193,14 @@ if __name__ == '__main__':
 
 
     def parallel_log_prob(theta):
-        log_prob_component_ = partial(log_prob_component, theta=theta)
+        log_prob_component_ = log_prob_component_factory(theta)
         return sum(pool.map(log_prob_component_, range(len(vacuum_trajs))))
 
 
     def parallel_grad_log_prob(theta):
         """Use autograd to compute the gradient of each term separately, then return the sum"""
-        grad_log_prob_component_ = partial(grad(log_prob_component, argnum=1), theta=theta)
+        grad_log_prob_component_ = log_prob_component_factory(theta)
+        #grad_log_prob_component_ = partial(grad(log_prob_component, argnum=1), theta=theta)
         return sum(pool.map(grad_log_prob_component_, range(len(vacuum_trajs))))
 
 
@@ -203,8 +213,8 @@ if __name__ == '__main__':
     initial_log_prob = parallel_log_prob(theta0)
     print('initial log prob', log_prob(theta0))
 
-    grad_log_prob = grad(log_prob)
-    #grad_log_prob = parallel_grad_log_prob
+    #grad_log_prob = grad(log_prob)
+    grad_log_prob = parallel_grad_log_prob
 
     print('initial gradient norm = {}'.format(np.linalg.norm(grad_log_prob(theta0))))
 
