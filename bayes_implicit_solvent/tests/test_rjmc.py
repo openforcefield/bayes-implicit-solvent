@@ -75,7 +75,7 @@ from simtk import unit
 from scipy.stats import multivariate_normal
 
 @pytest.mark.slow
-def test_uniform_sampling(depth_cutoff=2, n_iterations=100000):
+def test_uniform_sampling_normal(depth_cutoff=2, n_iterations=10000):
     """Test that a sampler targeting these discrete structures and associated continuous parameters jointly
     obtains a uniform distribution over bounded-depth trees when appropriate.
     To do this, we ensure that each discrete tree has the same normalizing constant (namely, 1).
@@ -153,6 +153,10 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=100000):
 
     discrete_models = [tuple(t.ordered_nodes[2:]) for t in traj]
     distinct_discrete_models = sorted(list(set(discrete_models)))
+    discrete_model_index_dict = dict(zip(distinct_discrete_models, range(len(distinct_discrete_models))))
+    discrete_model_traj = [discrete_model_index_dict[d] for d in discrete_models]
+    np.save('discrete_model_traj.npy', discrete_model_traj)
+
     for d in distinct_discrete_models:
         print(d)
     print("number of distinct sampled models (as reflected in choice of smirks)", len(distinct_discrete_models))
@@ -191,5 +195,116 @@ def test_uniform_sampling(depth_cutoff=2, n_iterations=100000):
         pvalue_should_be_over_threshold = kstest_result.pvalue
 
         assert (pvalue_should_be_over_threshold > threshold)
+
+    return result
+
+@pytest.mark.slow
+def test_uniform_sampling_flat(depth_cutoff=2, n_iterations=100000):
+    """Test that a sampler targeting these discrete structures and associated continuous parameters jointly
+    obtains a uniform distribution over bounded-depth trees when appropriate.
+    To do this, we ensure that each discrete tree has the same normalizing constant (namely, 1).
+
+    # TODO: Choice of continuous distribution is arbitrary, as long as normalized. May switch to uniform instead of Gaussian.
+    """
+
+    np.random.seed(0)
+
+    # specifiers = ['X1', 'X2', 'X3']
+    specifiers = ['X1', 'X2']
+    # specifiers = ['X1']
+
+    # TODO: Set up testing fixtures with different numbers of specifiers, depth_cutoffs, etc.
+
+    atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
+    N = len(atom_specification_proposal.atomic_specifiers)
+    un_delete_able_types = ['*', '[#1]']
+    initial_tree = GBTypingTree(smirks_elaboration_proposal=atom_specification_proposal,
+                                un_delete_able_types=un_delete_able_types,
+                                proposal_sigma=1.0 * unit.nanometer,
+                                )
+
+    for base_type in un_delete_able_types[1:]:
+        initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
+
+    from math import factorial
+    n_trees_at_length = lambda length: int(factorial(N) / factorial(N - length))
+
+    number_of_trees_at_each_length = list(map(n_trees_at_length, range(len(specifiers) + 1)))
+
+
+    def log_prob(tree):
+        """To induce a uniform marginal distribution over *discrete* trees
+        up to depth cutoff without duplicated nodes:
+        1. check that the discrete tree is valid -- if not, return a log-probability of -inf
+        2. define a normalized distribution over each tree's *continuous* parameters,
+        namely a multivariate normal distribution
+
+        If we sample the resulting probability distribution properly, we should obtain:
+        1. A uniform marginal distribution over valid discrete trees
+        2. A gaussian distribution over the continuous parameters within each model
+        """
+
+        L = 0.5
+        N_nodes = tree.number_of_nodes
+        no_duplicates = (len(set(tree.nodes)) == N_nodes)
+        within_depth_limit = (max(nx.shortest_path_length(tree.G, source='*').values()) <= depth_cutoff)
+        if no_duplicates and within_depth_limit:
+            tree_radii = tree.get_radii() # a length-N_nodes vector of the radii associated with nodes in the tree
+            if (min(tree_radii) >= 0) and (max(tree_radii) <= L):
+                return - np.log(L**N_nodes)
+            else:
+                return - np.inf
+            #return multivariate_normal.logpdf(x=tree_radii, mean=mean_vector)
+        else:
+            return - np.inf
+    np.random.seed(0)
+    result = tree_rjmc(initial_tree, log_prob,
+                       n_iterations=n_iterations,
+                       fraction_cross_model_proposals=0.5,
+                       )
+    radii = [tree.get_radii() for tree in result['traj']]
+
+    np.save('sampled_radii_flat.npy', radii)
+
+    print('number of possible distinct discrete trees at each length',
+          list(zip(range(len(number_of_trees_at_each_length)), number_of_trees_at_each_length)))
+
+    number_of_possibilities = sum(number_of_trees_at_each_length)
+    print('number of possibilities:', number_of_possibilities)
+
+    print('initial tree:')
+    print(initial_tree)
+
+    traj = result['traj']
+    string_representations = list(map(str, traj))
+    print('number of distinct sampled models (as reflected in string representation)', len(set(string_representations)))
+    for s in list(set(string_representations))[:5]:
+        print(s)
+
+    discrete_models = [tuple(t.ordered_nodes[2:]) for t in traj]
+    distinct_discrete_models = sorted(list(set(discrete_models)))
+    discrete_model_index_dict = dict(zip(distinct_discrete_models, range(len(distinct_discrete_models))))
+    discrete_model_traj = [discrete_model_index_dict[d] for d in discrete_models]
+    np.save('discrete_model_traj_flat.npy', discrete_model_traj)
+
+    for d in distinct_discrete_models:
+        print(d)
+    print("number of distinct sampled models (as reflected in choice of smirks)", len(distinct_discrete_models))
+    thinning = 20
+    lengths = np.array([len(d) for d in discrete_models[::thinning]])
+
+    expected_length_distribution = len(lengths) * (np.array(number_of_trees_at_each_length) / np.sum(number_of_trees_at_each_length))
+    actual_length_distribution = np.zeros(len(expected_length_distribution))
+    for t in range(len(expected_length_distribution)):
+        actual_length_distribution[t] += sum(lengths == t)
+    print('expected_length_distribution', expected_length_distribution)
+    print('actual_length_distribution', actual_length_distribution)
+
+    threshold = 0.001
+
+    from scipy.stats import chisquare
+    chi2_result = chisquare(f_obs=actual_length_distribution, f_exp=expected_length_distribution)
+    print(chi2_result)
+    assert (chi2_result.pvalue > threshold)
 
     return result
