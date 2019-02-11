@@ -42,7 +42,7 @@ expt_means = []
 expt_uncs = []
 vacuum_trajs = []
 
-n_configuration_samples = 10  # TODO: Since this is cheaper, can probably modify this a bit...
+n_configuration_samples = 5  # TODO: Since this is cheaper, can probably modify this a bit...
 
 name = 'n_config={}_job_id={}'.format(n_configuration_samples, job_id)
 if gaussian_ll:
@@ -163,7 +163,7 @@ from bayes_implicit_solvent.numpy_gb_models import compute_OBC_energy_vectorized
 def log_prob_component(i, theta):
     radii, scales = construct_array(i, theta)
     if min(np.min(radii), np.min(scales)) < 0.001:
-        print('out of bounds!')
+        #print('out of bounds!')
         return -np.inf
     W_F = np.array([compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges[i]) for distance_matrix in
                     distance_matrices[i]])
@@ -179,8 +179,9 @@ def log_prob_component(i, theta):
 
 def log_prob(theta):
     mol_radii, mol_scales = construct_arrays(theta)
-    if min(theta[:-1]) < 0.001 or max(theta[:-1]) > 2:
-        print('out of bounds!')
+
+    if np.min(theta) < 0.001 or np.max(theta) > 2:
+        #print('out of bounds!')
         return -np.inf
     logp = 0
     for i in range(len(mols)):
@@ -204,7 +205,7 @@ from functools import partial
 if __name__ == '__main__':
     from multiprocessing import Pool
 
-    n_processes = 8
+    n_processes = 4
     pool = Pool(n_processes)
 
 
@@ -217,9 +218,9 @@ if __name__ == '__main__':
     initial_log_prob = parallel_log_prob(theta0)
     print('initial log prob', log_prob(theta0))
 
-    stepsize = 1e-1
+    stepsize = 0.5 * 1e-1
     n_steps = 10000
-    dim_to_perturb = 2
+    dim_to_perturb = 5
 
     traj, log_probs, acceptance_fraction = sparse_mh(theta0, parallel_log_prob, n_steps=n_steps, stepsize=stepsize,
                                                      dim_to_perturb=dim_to_perturb)

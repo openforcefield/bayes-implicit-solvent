@@ -90,7 +90,7 @@ def sparse_mh(x0, log_prob_fun, n_steps=1000, stepsize=0.1, dim_to_perturb=2):
     for n in trange:
         inds = np.arange(dim)
         np.random.shuffle(inds)
-        inds_to_perturb = inds[:dim_to_perturb]
+        inds_to_perturb = inds[:np.random.randint(1, dim_to_perturb)]
 
         x_proposal = np.array(traj[-1])
         x_proposal[inds_to_perturb] += stepsize * np.random.randn(len(inds_to_perturb))

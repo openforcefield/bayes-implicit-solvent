@@ -109,6 +109,19 @@ def alkanes_demo(n_configuration_samples=100, n_parameter_samples=10000):
     print("acceptance fraction: {:.4f}".format(acceptance_fraction))
 
 
+def pack(radii, scales):
+    n = len(radii)
+    theta = np.zeros(2 * n)
+    theta[:n] = radii
+    theta[n:2 * n] = scales
+    return theta
+
+
+def unpack(theta):
+    n = int((len(theta)) / 2)
+    radii, scales = theta[:n], theta[n:2 * n]
+    return radii, scales
+
 def quarter_freesolv_demo(n_configuration_samples=10, n_parameter_samples=10000):
     """Run toy 2D parameterization demo with one randomly-selected quarter of freesolv"""
 
@@ -135,29 +148,35 @@ def quarter_freesolv_demo(n_configuration_samples=10, n_parameter_samples=10000)
         hydrogens.append(np.array([a.element.symbol == 'H' for a in mol.top.atoms()]))
         mols.append(mol)
 
-    def log_prob(radii):
+    def log_prob(theta):
+        radii, scales = unpack(theta)
         logp = 0
         for i in range(len(mols)):
             mol = mols[i]
             atomic_radii = np.ones(len(mol.pos)) * radii[0]
             atomic_radii[hydrogens[i]] = radii[1]
 
-            # TODO: update this example to allow the scaling_factors to be variable also
-            default_scaling_factors = np.ones(len(mol.pos))
-            logp += mol.log_prob(atomic_radii, default_scaling_factors)
+            atomic_scales = np.ones(len(mol.pos)) * scales[0]
+            atomic_scales[hydrogens[i]] = scales[1]
+
+            logp += mol.log_prob(atomic_radii, atomic_scales)
 
         return logp
 
+
     radii0 = np.array([0.1, 0.1])
+    scales0 = np.array([0.8, 0.8])
+    theta0 = pack(radii0, scales0)
 
-    stepsize = 0.005
+    stepsize = 0.0025
 
-    traj, log_probs, acceptance_fraction = random_walk_mh(radii0, log_prob,
+    traj, log_probs, acceptance_fraction = random_walk_mh(theta0, log_prob,
                                                           n_steps=n_parameter_samples, stepsize=stepsize)
 
-    np.save(os.path.join(data_path,
-                         'H_vs_not_radii_samples_quarter_freesolv_n_config={}.npy'.format(
-                             n_configuration_samples)), traj)
+    np.savez(os.path.join(data_path,
+                          'H_vs_not_freesolv_{}.npz'.format(len(quarter_smiles))),
+             traj=traj, log_probs=log_probs, acceptance_fraction=acceptance_fraction, stepsize=stepsize,
+             n_steps=n_parameter_samples, smiles_subset=quarter_smiles, n_configuration_samples=n_configuration_samples)
 
     print("acceptance fraction: {:.4f}".format(acceptance_fraction))
 
@@ -196,24 +215,28 @@ def freesolv_demo(n_configuration_samples=10, n_parameter_samples=10000):
         return logp
 
     radii0 = np.array([0.1, 0.1])
+    scales0 = np.array([0.8, 0.8])
+    theta0 = pack(radii0, scales0)
 
-    stepsize = 0.001
+    stepsize = 0.002
 
-    traj, log_probs, acceptance_fraction = random_walk_mh(radii0, log_prob,
+    traj, log_probs, acceptance_fraction = random_walk_mh(theta0, log_prob,
                                                           n_steps=n_parameter_samples, stepsize=stepsize)
 
-    np.save(os.path.join(data_path,
-                         'H_vs_not_radii_samples_full_freesolv_n_config={}.npy'.format(
-                             n_configuration_samples)), traj)
+
+    np.savez(os.path.join(data_path,
+                          'H_vs_not_freesolv.npz'),
+             traj=traj, log_probs=log_probs, acceptance_fraction=acceptance_fraction, stepsize=stepsize,
+             n_steps=n_parameter_samples)
 
     print("acceptance fraction: {:.4f}".format(acceptance_fraction))
 
 
 if __name__ == '__main__':
-    methane_demo()
+    #methane_demo()
 
-    for n_config in [10, 50, 100]:
-        alkanes_demo(n_configuration_samples=n_config)
+    #for n_config in [10, 50, 100]:
+    #    alkanes_demo(n_configuration_samples=n_config)
 
-    quarter_freesolv_demo(n_configuration_samples=10, n_parameter_samples=1000)
-    freesolv_demo(n_configuration_samples=10, n_parameter_samples=1000)
+    quarter_freesolv_demo(n_configuration_samples=5, n_parameter_samples=10000)
+    #freesolv_demo(n_configuration_samples=10, n_parameter_samples=1000)
