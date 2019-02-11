@@ -203,8 +203,8 @@ if __name__ == '__main__':
     initial_log_prob = parallel_log_prob(theta0)
     print('initial log prob', log_prob(theta0))
 
-    #grad_log_prob = grad(log_prob)
-    grad_log_prob = parallel_grad_log_prob
+    grad_log_prob = grad(log_prob)
+    #grad_log_prob = parallel_grad_log_prob
 
     print('initial gradient norm = {}'.format(np.linalg.norm(grad_log_prob(theta0))))
 
