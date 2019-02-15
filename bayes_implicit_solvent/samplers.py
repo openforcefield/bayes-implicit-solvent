@@ -275,16 +275,18 @@ def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01,
             if np.mean(recent_acceptance_probs) < 0.1 or np.mean(recent_acceptance_probs) > 0.9:
                 print(
                     'Acceptance rate recently ({}) is not close to the optimal acceptance rate (0.574). Consider adjusting the step-size.'.format(
-                        np.mean(acceptance_probs)))
+                        np.mean(recent_acceptance_probs)))
             if adapt_stepsize:
                 print('Attempting to adapt the step-size automatically. This may be a bad idea.')
                 if np.mean(acceptance_probs[-adaptation_interval:]) < 0.1:
                     # acceptance probability too low, step size probably too big, try shrinking it
                     new_stepsize = stepsize * (1 - adaptation_factor)
+                    verb = "decreasing"
                 else:
                     # acceptance probability too high, step size probably too small, try increasing it
                     new_stepsize = stepsize * (1 + adaptation_factor)
-                print('updating stepsize from {} to {}'.format(stepsize, new_stepsize))
+                    verb = "increasing"
+                print('{} stepsize from {} to {}'.format(verb, stepsize, new_stepsize))
                 stepsize = new_stepsize
 
         stepsizes.append(stepsize)
