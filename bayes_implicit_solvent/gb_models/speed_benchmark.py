@@ -196,6 +196,89 @@ t1 = time()
 timings['Autograd vectorized parameter hessian-vector products'] = (t1 - t0) / n_snapshots
 
 
+import jax.numpy as np
+from bayes_implicit_solvent.gb_models.jax_gb_models import compute_OBC_energy_reference, compute_OBC_energy_vectorized
+
+from jax import grad, jit, vmap
+
+# # TypeError: 'FilledConstant' object does not support item assignment
+# t0 = time()
+# jax_reference_energies = [compute_OBC_energy_reference(distance_matrix, radii, scales, charges,
+#                                                             offset, screening, surface_tension,
+#                                                             solvent_dielectric, solute_dielectric) for
+#                                distance_matrix in
+#
+#                                distance_matrices]
+# t1 = time()
+# timings['Jax reference energies'] = (t1 - t0) / n_snapshots
+
+
+t0 = time()
+jax_vectorized_energies = [compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges,
+                                                              offset, screening, surface_tension,
+                                                              solvent_dielectric, solute_dielectric) for
+                                distance_matrix in
+                                distance_matrices]
+t1 = time()
+timings['Jax vectorized energies'] = (t1 - t0) / n_snapshots
+
+
+def jax_reference_loss(theta):
+    radii, scales = unpack(theta)
+    energies = [compute_OBC_energy_reference(distance_matrix, radii, scales, charges,
+                                   offset, screening, surface_tension,
+                                   solvent_dielectric, solute_dielectric) for
+     distance_matrix in
+     distance_matrices]
+    loss = np.sum(np.abs(energies))
+    return loss
+
+def jax_vectorized_loss(theta):
+    radii, scales = unpack(theta)
+    energies = [compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges,
+                                   offset, screening, surface_tension,
+                                   solvent_dielectric, solute_dielectric) for
+     distance_matrix in
+     distance_matrices]
+    loss = np.sum(np.abs(energies))
+    return loss
+
+# TODO: get this line to run
+# currently this raises a type error:
+# TypeError: No abstraction handler for type: <class 'list'>
+_ = grad(jax_vectorized_loss)(theta)
+
+t0 = time()
+_ = grad(jax_vectorized_loss)(theta)
+t1 = time()
+timings['Jax vectorized parameter gradients'] = (t1 - t0) / n_snapshots
+
+# # TypeError: 'FilledConstant' object does not support item assignment
+# _ = grad(jax_reference_loss)(theta)
+# t0 = time()
+# _ = grad(jax_reference_loss)(theta)
+# t1 = time()
+# timings['Jax reference parameter gradients'] = (t1 - t0) / n_snapshots
+
+
+def jax_vmap_vectorized_loss(theta):
+    radii, scales = unpack(theta)
+
+    @jit
+    def compute_loss_component(distance_matrix):
+        return np.abs(compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges,
+                                   offset, screening, surface_tension,
+                                   solvent_dielectric, solute_dielectric))
+    loss = np.sum(vmap(compute_loss_component)(distance_matrices))
+    return loss
+
+_ = grad(jax_vmap_vectorized_loss)(theta)
+
+t0 = time()
+_ = grad(jax_vmap_vectorized_loss)(theta)
+t1 = time()
+timings['Jax vmap vectorized parameter gradients'] = (t1 - t0) / n_snapshots
+
 print('OpenMM reference timing: {}s per snapshot'.format(reference_timing))
 for key in timings:
     print('{}: {:.3f}s ({:.3f}x OpenMM reference)'.format(key, timings[key], timings[key] / reference_timing))
