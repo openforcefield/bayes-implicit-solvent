@@ -204,6 +204,9 @@ class SMARTSTyper():
     def __repr__(self):
         return 'SMARTSTyper with {} patterns: '.format(len(self.smarts_list)) + str(self.smarts_list)
 
+    def __hash__(self):
+        return hash(tuple(self.smarts_list))
+
 
 class FlatGBTyper(SMARTSTyper):
     def __init__(self, smarts_list):
@@ -583,6 +586,9 @@ class GBTypingTree():
         width = max_length + 4
 
         return '\n'.join([lines[i] + radii[i].rjust(width - len(lines[i])) for i in range(len(lines))])
+
+    def __hash__(self):
+        return hash(tuple(self.G.edges()))
 
 
 if __name__ == '__main__':
