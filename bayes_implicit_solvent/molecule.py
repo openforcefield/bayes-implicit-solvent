@@ -6,13 +6,11 @@ from bayes_implicit_solvent.constants import min_r, max_r, min_scale, max_scale
 from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_energy, \
     get_vacuum_samples, db, smiles_list, mol_top_sys_pos_list, create_implicit_sim, beta
 
-
-# TODO: maybe expose these parameters, if we need this not to be hard-coded...
-
+from functools import lru_cache
 
 class Molecule():
     def __init__(self, smiles, verbose=False, vacuum_samples=None,
-                 n_samples=50, thinning=50000):
+                 n_samples=50, thinning=50000, ll='gaussian'):
         """Create an object that supports prediction of solvation free energy given radii
 
         Parameters
@@ -30,6 +28,9 @@ class Molecule():
 
         thinning : int
             if vacuum samples not provided, how many steps to take between samples?
+
+        ll : string in {'gaussian', 'student-t'}
+            is each log-likelihood term Gaussian or heavy-tailed?
 
         Attributes
         ----------
@@ -62,8 +63,11 @@ class Molecule():
         implicit_sim : OpenMM Simulation
             same as vacuum_sim, but with a GBSAOBCForce added
         """
+
+        assert (ll in {'gaussian, student-t'})
         self.smiles = smiles
         self.verbose = verbose
+        self.ll = ll
 
         # find the index of this molecule in our smiles list
         mol_index_in_smiles_list = -1
@@ -182,24 +186,17 @@ class Molecule():
         """Un-normalized log-probability : log-likelihood, if log-prior > -infty
         """
         if self.bounds_check(radii, scale_factors):
-            # ll = self.log_likelihood(radii, scale_factors)  # TODO: Switch back to Student-t?
-            ll = self.gaussian_log_likelihood(radii, scale_factors)
+            if self.ll == 'student-t':
+                ll = self.log_likelihood(radii, scale_factors)  # TODO: Switch back to Student-t?
+            elif self.ll == 'gaussian':
+                ll = self.gaussian_log_likelihood(radii, scale_factors)
             return ll
         else:
             return - np.inf
 
-    def log_prob(self, radii, scaling_factors):
-        r_tuple = tuple(radii)
-        s_tuple = tuple(scaling_factors)
-        theta_tuple = r_tuple + s_tuple
-        # TODO: replace with a parameter object that knows how to hash itself
-
-        # TODO: Replace dictionary (whose memory footprint will keep increasing throughout)
-        # the object's lifetime) with deque
-        if theta_tuple not in self.log_prob_cache:
-            self.log_prob_cache[theta_tuple] = self.log_prob_uncached(radii, scaling_factors)
-
-        return self.log_prob_cache[theta_tuple]
+    @lru_cache(maxsize=4)
+    def log_prob(self, radii, scale_factors):
+        return self.log_prob_uncached(radii, scale_factors)
 
 
 if __name__ == '__main__':

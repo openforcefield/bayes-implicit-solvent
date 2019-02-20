@@ -71,7 +71,7 @@ data_path = '../data/'
 np.random.seed(0)
 
 inds = np.arange(len(smiles_list))
-#np.random.shuffle(inds)
+np.random.shuffle(inds)
 inds = inds[:int(len(smiles_list) / 2)]
 
 smiles_subset = [smiles_list[i] for i in inds]
@@ -116,7 +116,35 @@ def log_prob(theta):
     return sum([mols[i].log_prob(radii[type_assignments[i]], scales[type_assignments[i]]) for i in range(len(mols))])
 
 
-traj, log_probs, acceptance_fraction = sparse_mh(theta0, log_prob, n_steps=10000, dim_to_perturb=3, stepsize=0.01)
+from scipy.optimize import minimize
+
+traj = []
+def loss(theta):
+    l = -log_prob(theta)
+    traj.append((theta, l))
+    return l
+
+min_theta, max_theta = 0.01, 2.0
+bounds = [(min_theta, max_theta)] * len(theta0)
+
+
+result = minimize(loss, theta0,
+              #jac=grad_loss,
+              method='L-BFGS-B',
+              #method='Newton-CG',
+              #hessp=hessian_vector_product(loss),
+              #callback=callback,
+              bounds=bounds,
+              options={'disp': True,
+                       'maxiter': 100})
+
+theta1 = result.x
+minimized_theta_fname = os.path.join(data_path,
+                                         'smirnoff-types_L-BFGS_freesolv.npy')
+np.save(minimized_theta_fname, theta1)
+
+
+traj, log_probs, acceptance_fraction = sparse_mh(theta1, log_prob, n_steps=10000, dim_to_perturb=3, stepsize=0.01)
 
 np.savez(os.path.join(data_path,
                      'smirnoff_type_radii_samples_half_of_freesolv_n_config={}.npy'.format(
