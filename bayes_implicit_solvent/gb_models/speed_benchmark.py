@@ -49,7 +49,7 @@ from tqdm import tqdm
 print('collecting a few configurations...')
 implicit_traj = []
 for _ in tqdm(range(100)):
-    implicit_sim.step(100)
+    implicit_sim.step(10)
     implicit_traj.append(implicit_sim.context.getState(getPositions=True).getPositions(asNumpy=True))
 
 from scipy.spatial.distance import pdist, squareform
@@ -113,9 +113,10 @@ for i in range(len(o_rs)):
     scales[i] = s_rs[i] / o_rs[i]
 
 def precompute_distance_matrices(x):
-    return [squareform(pdist(snapshot)) + np.eye(len(snapshot)) for snapshot in x]
+    return np.array([squareform(pdist(snapshot)) + np.eye(len(snapshot)) for snapshot in x])
 
 distance_matrices = precompute_distance_matrices(implicit_traj)
+print('distance_matrices.shape', distance_matrices.shape)
 
 
 from time import time
@@ -197,21 +198,9 @@ timings['Autograd vectorized parameter hessian-vector products'] = (t1 - t0) / n
 
 
 import jax.numpy as np
-from bayes_implicit_solvent.gb_models.jax_gb_models import compute_OBC_energy_reference, compute_OBC_energy_vectorized
+from bayes_implicit_solvent.gb_models.jax_gb_models import compute_OBC_energy_vectorized
 
 from jax import grad, jit, vmap
-
-# # TypeError: 'FilledConstant' object does not support item assignment
-# t0 = time()
-# jax_reference_energies = [compute_OBC_energy_reference(distance_matrix, radii, scales, charges,
-#                                                             offset, screening, surface_tension,
-#                                                             solvent_dielectric, solute_dielectric) for
-#                                distance_matrix in
-#
-#                                distance_matrices]
-# t1 = time()
-# timings['Jax reference energies'] = (t1 - t0) / n_snapshots
-
 
 t0 = time()
 jax_vectorized_energies = [compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges,
@@ -222,45 +211,7 @@ jax_vectorized_energies = [compute_OBC_energy_vectorized(distance_matrix, radii,
 t1 = time()
 timings['Jax vectorized energies'] = (t1 - t0) / n_snapshots
 
-
-def jax_reference_loss(theta):
-    radii, scales = unpack(theta)
-    energies = [compute_OBC_energy_reference(distance_matrix, radii, scales, charges,
-                                   offset, screening, surface_tension,
-                                   solvent_dielectric, solute_dielectric) for
-     distance_matrix in
-     distance_matrices]
-    loss = np.sum(np.abs(energies))
-    return loss
-
-def jax_vectorized_loss(theta):
-    radii, scales = unpack(theta)
-    energies = [compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges,
-                                   offset, screening, surface_tension,
-                                   solvent_dielectric, solute_dielectric) for
-     distance_matrix in
-     distance_matrices]
-    loss = np.sum(np.abs(energies))
-    return loss
-
-# TODO: get this line to run
-# currently this raises a type error:
-# TypeError: No abstraction handler for type: <class 'list'>
-_ = grad(jax_vectorized_loss)(theta)
-
-t0 = time()
-_ = grad(jax_vectorized_loss)(theta)
-t1 = time()
-timings['Jax vectorized parameter gradients'] = (t1 - t0) / n_snapshots
-
-# # TypeError: 'FilledConstant' object does not support item assignment
-# _ = grad(jax_reference_loss)(theta)
-# t0 = time()
-# _ = grad(jax_reference_loss)(theta)
-# t1 = time()
-# timings['Jax reference parameter gradients'] = (t1 - t0) / n_snapshots
-
-
+@jit
 def jax_vmap_vectorized_loss(theta):
     radii, scales = unpack(theta)
 
@@ -279,6 +230,6 @@ _ = grad(jax_vmap_vectorized_loss)(theta)
 t1 = time()
 timings['Jax vmap vectorized parameter gradients'] = (t1 - t0) / n_snapshots
 
-print('OpenMM reference timing: {}s per snapshot'.format(reference_timing))
+print('OpenMM reference timing: {:.2f}ms per snapshot\n'.format(reference_timing * 1000))
 for key in timings:
-    print('{}: {:.3f}s ({:.3f}x OpenMM reference)'.format(key, timings[key], timings[key] / reference_timing))
+    print('{}: {:.2f}ms ({:.2f}x OpenMM reference)'.format(key, timings[key] * 1000, timings[key] / reference_timing))
