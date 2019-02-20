@@ -1,6 +1,7 @@
 # ensure consistency between energies from OpenMM and from autograd / numpy clone
 
 from autograd import numpy as np
+from autograd import grad
 from openmmtools.testsystems import AlanineDipeptideImplicit
 from simtk import openmm as mm
 from simtk import unit
@@ -87,7 +88,7 @@ for i in range(n_snapshots):
     implicit_only_Us.append(implicit_only_sim.context.getState(getEnergy=True).getPotentialEnergy())
 t1 = time()
 
-timings['OpenMM Reference'] = (t1 - t0) / n_snapshots
+reference_timing = (t1 - t0) / n_snapshots
 
 print('cloning per particle parameters')
 
@@ -139,9 +140,56 @@ autograd_vectorized_energies = [compute_OBC_energy_vectorized(distance_matrix, r
 t1 = time()
 timings['Autograd vectorized energies'] = (t1 - t0) / n_snapshots
 
-print(timings)
 
-openmm_energies = [v.value_in_unit(unit.kilojoule_per_mole) for v in implicit_only_Us]
+def pack(radii, scales):
+    n = len(radii)
+    theta = np.zeros(2 * n)
+    theta[:n] = radii
+    theta[n:2 * n] = scales
+    return theta
+
+def unpack(theta):
+    n = int((len(theta)) / 2)
+    radii, scales = theta[:n], theta[n:2 * n]
+    return radii, scales
+
+def reference_loss(theta):
+    radii, scales = unpack(theta)
+    energies = [compute_OBC_energy_reference(distance_matrix, radii, scales, charges,
+                                   offset, screening, surface_tension,
+                                   solvent_dielectric, solute_dielectric) for
+     distance_matrix in
+     distance_matrices]
+    loss = np.sum(np.abs(energies))
+    return loss
+
+def vectorized_loss(theta):
+    radii, scales = unpack(theta)
+    energies = [compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges,
+                                   offset, screening, surface_tension,
+                                   solvent_dielectric, solute_dielectric) for
+     distance_matrix in
+     distance_matrices]
+    loss = np.sum(np.abs(energies))
+    return loss
 
 
-# TODO: Also gradients and hessian vector products
+theta = pack(radii, scales)
+
+t0 = time()
+_ = grad(vectorized_loss)(theta)
+t1 = time()
+timings['Autograd vectorized parameter gradients'] = (t1 - t0) / n_snapshots
+
+# somehow this gets a "ValueError: setting an array element with a sequence"
+#t0 = time()
+#_ = grad(reference_loss)(theta)
+#t1 = time()
+#timings['Autograd reference parameter gradients'] = (t1 - t0) / n_snapshots
+
+
+print('OpenMM reference timing: {}s per snapshot'.format(reference_timing))
+for key in timings:
+    print('{}: {:.3f}s ({:.3f}x OpenMM reference)'.format(key, timings[key], timings[key] / reference_timing))
+
+# TODO: Also hessian vector products
