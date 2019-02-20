@@ -187,9 +187,15 @@ timings['Autograd vectorized parameter gradients'] = (t1 - t0) / n_snapshots
 #t1 = time()
 #timings['Autograd reference parameter gradients'] = (t1 - t0) / n_snapshots
 
+from autograd import hessian_vector_product
+vector = np.random.randn(len(theta))
+
+t0 = time()
+_ = hessian_vector_product(vectorized_loss)(theta, vector)
+t1 = time()
+timings['Autograd vectorized parameter hessian-vector products'] = (t1 - t0) / n_snapshots
+
 
 print('OpenMM reference timing: {}s per snapshot'.format(reference_timing))
 for key in timings:
     print('{}: {:.3f}s ({:.3f}x OpenMM reference)'.format(key, timings[key], timings[key] / reference_timing))
-
-# TODO: Also hessian vector products
