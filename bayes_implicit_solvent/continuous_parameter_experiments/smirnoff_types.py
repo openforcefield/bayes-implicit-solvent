@@ -1,6 +1,7 @@
-from bayes_implicit_solvent.typers import GBTypingTree
-
-typer = GBTypingTree()
+from bayes_implicit_solvent.typers import GBTypingTree, AtomSpecificationProposal
+specifiers = ['X1', 'X2', 'X3', 'X4']
+atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
+typer = GBTypingTree(atom_specification_proposal)
 
 # hydrogen types
 typer.add_child('[#1]', '*')
@@ -70,8 +71,8 @@ data_path = '../data/'
 np.random.seed(0)
 
 inds = np.arange(len(smiles_list))
-np.random.shuffle(inds)
-inds = inds[:int(len(smiles_list) / 10)]
+#np.random.shuffle(inds)
+inds = inds[:int(len(smiles_list) / 2)]
 
 smiles_subset = [smiles_list[i] for i in inds]
 
@@ -91,17 +92,32 @@ for smiles in smiles_subset:
     mols.append(mol)
 
 type_assignments = typer.apply_to_molecule_list([mol.mol for mol in mols])
-radii0 = np.ones(typer.number_of_nodes) * 0.1
+radii0 = np.ones(typer.number_of_nodes) * 0.12
+scales0 = np.ones(typer.number_of_nodes) * 0.85
 
+def pack(radii, scales):
+    n = len(radii)
+    theta = np.zeros(2 * n)
+    theta[:n] = radii
+    theta[n:2 * n] = scales
+    return theta
 
-def log_prob(radii):
+theta0 = pack(radii0, scales0)
+
+def unpack(theta):
+    n = int((len(theta)) / 2)
+    radii, scales = theta[:n], theta[n:2 * n]
+    return radii, scales
+
+def log_prob(theta):
     """Fixed typing scheme, only radii"""
+    radii, scales, = unpack(theta)
     # TODO: Update example to allow variable scale-factors also
-    return sum([mols[i].log_prob(radii[type_assignments[i]], np.ones(len(type_assignments[i]))) for i in range(len(mols))])
+    return sum([mols[i].log_prob(radii[type_assignments[i]], scales[type_assignments[i]]) for i in range(len(mols))])
 
 
-traj, log_probs, acceptance_fraction = sparse_mh(radii0, log_prob, n_steps=10000, dim_to_perturb=1, stepsize=0.01)
+traj, log_probs, acceptance_fraction = sparse_mh(theta0, log_prob, n_steps=10000, dim_to_perturb=3, stepsize=0.01)
 
 np.savez(os.path.join(data_path,
-                     'smirnoff_type_radii_samples_one_tenth_of_freesolv_n_config={}.npy'.format(
+                     'smirnoff_type_radii_samples_half_of_freesolv_n_config={}.npy'.format(
                          n_configuration_samples)), traj=traj, log_probs=log_probs)

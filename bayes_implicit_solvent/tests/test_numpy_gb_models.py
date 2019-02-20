@@ -6,7 +6,7 @@ from simtk import openmm as mm
 from simtk import unit
 from simtk.openmm import app
 
-from bayes_implicit_solvent.numpy_gb_models import compute_OBC_energy_reference, compute_OBC_energy_vectorized
+from bayes_implicit_solvent.gb_models.numpy_gb_models import compute_OBC_energy_reference, compute_OBC_energy_vectorized
 
 
 # first pass: just set up the system in a function: can later make this conform to pytest fixture idiom...

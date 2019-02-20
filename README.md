@@ -4,7 +4,7 @@ experiments with Bayesian calibration of implicit solvent models
 ## Contents
 
 ### `bayes_implicit_solvent`
-* `numpy_gb_models.py` -- Clones the OpenMM GBSA OBC force in numpy (vectorized and non-vectorized), since I wasn't able to compute gradients w.r.t. per-particle parameters in CustomGBForce.
+* `gb_models` -- Clones the OpenMM GBSA OBC force in numpy (vectorized and non-vectorized) in autodiff frameworks, since I wasn't able to compute gradients w.r.t. per-particle parameters in CustomGBForce.
 * `molecule.py` -- Defines a class `Molecule` that predicts solvation free energy as function of GB parameters and compares to an experimental value, for use in posterior sampling.
 * `prior_checking.py` -- methods for checking whether a typing scheme is legal
 * `samplers.py` -- defines parameter samplers: random-walk Metropolis-Hastings, Langevin (unadjusted and Metropolis-Adjusted), RJMC

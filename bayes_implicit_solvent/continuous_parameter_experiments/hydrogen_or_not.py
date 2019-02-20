@@ -122,7 +122,7 @@ def unpack(theta):
     radii, scales = theta[:n], theta[n:2 * n]
     return radii, scales
 
-def quarter_freesolv_demo(n_configuration_samples=10, n_parameter_samples=10000):
+def quarter_freesolv_demo(n_configuration_samples=10, n_parameter_samples=10000, good_initialization=False):
     """Run toy 2D parameterization demo with one randomly-selected quarter of freesolv"""
 
     np.random.seed(0)
@@ -166,15 +166,19 @@ def quarter_freesolv_demo(n_configuration_samples=10, n_parameter_samples=10000)
 
     radii0 = np.array([0.1, 0.1])
     scales0 = np.array([0.8, 0.8])
+    if good_initialization:
+        radii0 = np.array([0.28319081, 0.20943347])
+        scales0 = np.array([0.89298609, 0.67449963])
+
     theta0 = pack(radii0, scales0)
 
-    stepsize = 0.0025
+    stepsize = 0.0005
 
     traj, log_probs, acceptance_fraction = random_walk_mh(theta0, log_prob,
                                                           n_steps=n_parameter_samples, stepsize=stepsize)
 
     np.savez(os.path.join(data_path,
-                          'H_vs_not_freesolv_{}.npz'.format(len(quarter_smiles))),
+                          'H_vs_not_freesolv_{}_dt={}.npz'.format(len(quarter_smiles), stepsize)),
              traj=traj, log_probs=log_probs, acceptance_fraction=acceptance_fraction, stepsize=stepsize,
              n_steps=n_parameter_samples, smiles_subset=quarter_smiles, n_configuration_samples=n_configuration_samples)
 
@@ -238,5 +242,5 @@ if __name__ == '__main__':
     #for n_config in [10, 50, 100]:
     #    alkanes_demo(n_configuration_samples=n_config)
 
-    quarter_freesolv_demo(n_configuration_samples=5, n_parameter_samples=10000)
+    quarter_freesolv_demo(n_configuration_samples=5, n_parameter_samples=1000, good_initialization=True)
     #freesolv_demo(n_configuration_samples=10, n_parameter_samples=1000)

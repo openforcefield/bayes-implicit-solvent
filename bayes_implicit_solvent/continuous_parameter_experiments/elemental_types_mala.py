@@ -125,7 +125,7 @@ def construct_arrays(theta):
     return mol_radii, mol_scales
 
 
-from bayes_implicit_solvent.numpy_gb_models import compute_OBC_energy_vectorized
+from bayes_implicit_solvent.gb_models.numpy_gb_models import compute_OBC_energy_vectorized
 
 
 def log_prob_component(i, theta):
@@ -188,8 +188,6 @@ if __name__ == '__main__':
 
     n_processes = 4
     pool = Pool(n_processes)
-
-    from functools import partial
 
 
     def parallel_log_prob(theta):
