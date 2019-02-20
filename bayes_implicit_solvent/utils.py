@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import numpy as np
 from openeye import oechem
 from simtk import unit
@@ -82,27 +84,11 @@ def get_substructure_matches(mol, subsearch):
                 matches[a.GetIdx()] = True
     return matches
 
-
-subsearch_cache = dict()
-number_of_cache_misses = 0
-number_of_cache_accesses = 0
-
-
+# TODO: Inspect cache hit / miss rate (and maybe also memory consumption) see if this is an appropriate choice
+@lru_cache(maxsize=2 ** 12)
 def cached_substructure_matches(mol, subsearch_string):
-    global number_of_cache_accesses
-    global number_of_cache_misses
-    global subsearch_cache
-
-    number_of_cache_accesses += 1
-
-    arg_tuple = (mol, subsearch_string)
-
-    if arg_tuple not in subsearch_cache:
-        subsearch = smarts_to_subsearch(subsearch_string)
-        subsearch_cache[arg_tuple] = get_substructure_matches(mol, subsearch)
-        number_of_cache_misses += 1
-
-    return subsearch_cache[arg_tuple]
+    subsearch = smarts_to_subsearch(subsearch_string)
+    return get_substructure_matches(mol, subsearch)
 
 
 def convert_to_unitd_array(unitd_quantities):
