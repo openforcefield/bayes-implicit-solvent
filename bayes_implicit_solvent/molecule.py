@@ -64,7 +64,7 @@ class Molecule():
             same as vacuum_sim, but with a GBSAOBCForce added
         """
 
-        assert (ll in {'gaussian, student-t'})
+        assert (ll in {'gaussian', 'student-t'})
         self.smiles = smiles
         self.verbose = verbose
         self.ll = ll
