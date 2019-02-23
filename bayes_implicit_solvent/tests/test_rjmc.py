@@ -37,8 +37,7 @@ def construct_initial_tree():
     specifiers = ['X1', 'X2', 'X3', 'X4']
     atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
     un_delete_able_types = ['*', '[#1]', '[#2]']
-    initial_tree = GBTypingTree(smirks_elaboration_proposal=atom_specification_proposal,
-                                un_delete_able_types=un_delete_able_types)
+    initial_tree = GBTypingTree(un_delete_able_types=un_delete_able_types)
     for base_type in un_delete_able_types[1:]:
         initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
     return initial_tree
@@ -94,10 +93,7 @@ def test_uniform_sampling_normal(depth_cutoff=2, n_iterations=10000):
     atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
     N = len(atom_specification_proposal.atomic_specifiers)
     un_delete_able_types = ['*', '[#1]']
-    initial_tree = GBTypingTree(smirks_elaboration_proposal=atom_specification_proposal,
-                                un_delete_able_types=un_delete_able_types,
-                                proposal_sigma=1.0 * unit.nanometer,
-                                )
+    initial_tree = GBTypingTree(proposal_sigma=1.0 * unit.nanometer, un_delete_able_types=un_delete_able_types)
 
     for base_type in un_delete_able_types[1:]:
         initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
@@ -218,10 +214,7 @@ def test_uniform_sampling_flat(depth_cutoff=2, n_iterations=100000):
     atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
     N = len(atom_specification_proposal.atomic_specifiers)
     un_delete_able_types = ['*', '[#1]']
-    initial_tree = GBTypingTree(smirks_elaboration_proposal=atom_specification_proposal,
-                                un_delete_able_types=un_delete_able_types,
-                                proposal_sigma=1.0 * unit.nanometer,
-                                )
+    initial_tree = GBTypingTree(proposal_sigma=1.0 * unit.nanometer, un_delete_able_types=un_delete_able_types)
 
     for base_type in un_delete_able_types[1:]:
         initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
