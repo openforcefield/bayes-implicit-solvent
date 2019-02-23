@@ -241,13 +241,8 @@ class FlatGBTyper(SMARTSTyper):
 
 
 class GBTypingTree():
-    def __init__(self,
-                 smirks_elaboration_proposal,
-                 default_parameters={'radius': 0.1 * unit.nanometer},
-                 proposal_sigma=0.01 * unit.nanometer,
-                 un_delete_able_types=set(['*']),
-                 max_nodes=100,
-                 ):
+    def __init__(self, default_parameters={'radius': 0.1 * unit.nanometer}, proposal_sigma=0.01 * unit.nanometer,
+                 un_delete_able_types=set(['*']), max_nodes=100):
         """We represent a typing scheme using a tree of elaborations (each child is an elaboration on its parent node)
         with types assigned using a last-match-wins scheme.
 
@@ -263,7 +258,6 @@ class GBTypingTree():
         self.max_nodes = max_nodes
         # initialize wildcard root node
         self.G.add_node('*', **self.default_parameters)
-        self.smirks_elaboration_proposal = smirks_elaboration_proposal
         self.update_node_order()
 
     def update_node_order(self):
@@ -419,7 +413,7 @@ class GBTypingTree():
         """Set the value of the "radius" property for the smirks type"""
         nx.set_node_attributes(self.G, {smirks: radius}, name='radius')
 
-    def sample_creation_proposal(self):
+    def sample_creation_proposal(self, smirks_elaboration_proposal):
         """Propose to randomly decorate an existing type to create a new type,
         with a slightly different radius than the existing type.
         Return a dict containing the new typing tree and the ratio of forward and reverse proposal probabilities."""
@@ -431,7 +425,7 @@ class GBTypingTree():
         parent_smirks = self.sample_decorate_able_node_uniformly_at_random()
 
         # create a new type by elaborating on the parent type
-        elaboration_proposal_dict = self.smirks_elaboration_proposal.sample(parent_smirks)
+        elaboration_proposal_dict = smirks_elaboration_proposal.sample(parent_smirks)
         child_smirks = elaboration_proposal_dict['proposal']
 
         # create a new type by elaborating on the parent type
@@ -461,7 +455,7 @@ class GBTypingTree():
                 'log_prob_forward_over_reverse': log_prob_forward_over_reverse,
                 }
 
-    def sample_deletion_proposal(self):
+    def sample_deletion_proposal(self, smirks_elaboration_proposal):
         """Sample a (delete-able) leaf node randomly and propose to delete it.
         Return a dict containing the new typing tree and the ratio of forward and reverse proposal probabilities."""
 
@@ -490,7 +484,7 @@ class GBTypingTree():
 
         log_prob_reverse = norm.logpdf(delta, loc=0, scale=sigma)
         log_prob_reverse += - np.log(proposal.number_of_decorate_able_nodes)
-        log_prob_reverse += proposal.smirks_elaboration_proposal.log_prob_forward(parent, None)
+        log_prob_reverse += smirks_elaboration_proposal.log_prob_forward(parent, None)
         log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
 
         return {'proposal': proposal,
@@ -522,11 +516,11 @@ class GBTypingTree():
         """Probability of attempting to delete an existing type"""
         return 1.0 - self.probability_of_sampling_a_create_proposal
 
-    def sample_create_delete_proposal(self):
+    def sample_create_delete_proposal(self, smirks_elaboration_proposal):
         """Randomly propose to create or delete a type"""
 
-        move_sampler_dict = {'create': lambda x: x.sample_creation_proposal(),
-                             'delete': lambda x: x.sample_deletion_proposal()}
+        move_sampler_dict = {'create': lambda x: x.sample_creation_proposal(smirks_elaboration_proposal),
+                             'delete': lambda x: x.sample_deletion_proposal(smirks_elaboration_proposal)}
         move_prob_dict = {'create': lambda x: x.probability_of_sampling_a_create_proposal,
                           'delete': lambda x: x.probability_of_sampling_a_delete_proposal,
                           }
@@ -640,7 +634,7 @@ if __name__ == '__main__':
             initial_smirks = proposed_smirks
 
     np.random.seed(0)
-    initial_tree = GBTypingTree(smirks_elaboration_proposal=smirks_elaboration_proposal)
+    initial_tree = GBTypingTree()
     for base_type in atomic_number_dict.keys():
         initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
     print(initial_tree)
