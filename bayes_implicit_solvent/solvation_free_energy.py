@@ -5,29 +5,6 @@ from pkg_resources import resource_filename
 from bayes_implicit_solvent.utils import apply_per_particle_params_to_GB_force
 from bayes_implicit_solvent.utils import get_gbsa_force, get_nb_force
 
-path_to_freesolv = resource_filename('bayes_implicit_solvent', 'data/FreeSolv-0.51/database.txt')
-
-with open(path_to_freesolv, 'r') as f:
-    freesolv = f.read()
-
-
-def load_freesolv():
-    db = []
-    for entry in freesolv.split('\n')[3:-1]:
-        db.append(entry.split('; '))
-    return db
-
-
-db = load_freesolv()
-
-from pickle import load
-
-with open(resource_filename('bayes_implicit_solvent', 'data/mol_top_sys_pos.pkl'), 'rb') as f:
-    mol_top_sys_pos_list = load(f)
-
-with open(resource_filename('bayes_implicit_solvent', 'data/sorted_smiles.pkl'), 'rb') as f:
-    smiles_list = load(f)
-
 from simtk.openmm import app
 from simtk import openmm as mm
 from simtk import unit

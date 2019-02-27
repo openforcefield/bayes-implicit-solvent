@@ -108,3 +108,5 @@ venv.bak/
 
 # h5 files for now
 *.h5
+*.mol2
+*.npy

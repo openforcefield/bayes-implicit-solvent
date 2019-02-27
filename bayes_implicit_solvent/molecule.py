@@ -4,14 +4,16 @@ from simtk import unit
 
 from bayes_implicit_solvent.constants import min_r, max_r, min_scale, max_scale
 from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_energy, \
-    get_vacuum_samples, db, smiles_list, mol_top_sys_pos_list, create_implicit_sim, beta
+    get_vacuum_samples, create_implicit_sim, beta
+from bayes_implicit_solvent.freesolv import db, smiles_list, mol_top_sys_pos_list
 
-from functools import lru_cache
+# TODO: Maybe resurrect this...
+# from functools import lru_cache
 
 class Molecule():
     def __init__(self, smiles, verbose=False, vacuum_samples=None,
                  n_samples=50, thinning=50000, ll='gaussian'):
-        """Create an object that supports prediction of solvation free energy given radii
+        """Create an object that supports prediction of solvation free energy given radii and scaling factors
 
         Parameters
         ----------
@@ -110,12 +112,12 @@ class Molecule():
         self.experimental_value = beta * (float(db[mol_index_in_freesolv][3]) * unit.kilocalorie_per_mole)
         self.experimental_uncertainty = beta * (float(db[mol_index_in_freesolv][4]) * unit.kilocalorie_per_mole)
 
-        if verbose: print('creating implicit-solvent simulation...')
+        if verbose:
+            print('creating implicit-solvent simulation...')
         self.implicit_sim = create_implicit_sim(self.top, self.sys)
 
-        if verbose: print('successfully initialized {}'.format(self.mol_name))
-
-        self.log_prob_cache = dict()
+        if verbose:
+            print('successfully initialized {}'.format(self.mol_name))
 
     def predict_solvation_free_energy(self, radii, scaling_factors):
         """Use one-sided EXP to predict the solvation free energy using this set of radii
@@ -194,7 +196,8 @@ class Molecule():
         else:
             return - np.inf
 
-    @lru_cache(maxsize=4)
+    # @lru_cache(maxsize=4)
+    # TODO: Maybe use lru_cache again
     def log_prob(self, radii, scale_factors):
         return self.log_prob_uncached(radii, scale_factors)
 
