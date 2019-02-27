@@ -14,6 +14,7 @@ np.random.seed(0)
 from bayes_implicit_solvent.gb_models.obc2_parameters import obc2_model
 
 initial_tree = obc2_model
+initial_tree.remove_node('[#14]') # otherwise everything is -inf, because this type will be empty
 
 # # add one more parameter per element appearing in FreeSolv but not specified in obc2 parameter set to initial tree
 # for i in [17, 35, 53]:
