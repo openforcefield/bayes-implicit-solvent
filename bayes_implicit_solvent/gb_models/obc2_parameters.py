@@ -18,8 +18,7 @@ initial_radius_dict[16] = 0.18
 # scales
 initial_scale_dict = {}
 
-# a few elements have different radii in the default model
-# https://github.com/pandegroup/openmm/blob/master/wrappers/python/simtk/openmm/app/internal/customgbforces.py#L233-L257
+# https://github.com/pandegroup/openmm/blob/master/wrappers/python/simtk/openmm/app/internal/customgbforces.py#L384-L393
 initial_scale_dict[1] = 0.85
 initial_scale_dict[6] = 0.72
 initial_scale_dict[7] = 0.79
