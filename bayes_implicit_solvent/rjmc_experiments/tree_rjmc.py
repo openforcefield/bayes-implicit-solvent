@@ -46,7 +46,7 @@ def log_prob(tree):
 
     theta = np.hstack([tree.get_radii(), tree.get_scale_factors()])
 
-    log_prior_value = log_prior(theta)
+    log_prior_value += log_prior(theta)
 
     if log_prior_value > -np.inf:
         try:
