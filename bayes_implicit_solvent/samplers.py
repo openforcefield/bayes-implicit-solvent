@@ -294,12 +294,12 @@ def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01,
     return np.array(traj), np.array(log_probs), np.array(grads), np.array(acceptance_probs), np.array(stepsizes)
 
 
-def tree_rjmc(initial_tree, log_prob_func, n_iterations=1000, fraction_cross_model_proposals=0.25):
+def tree_rjmc(initial_tree, log_prob_func, smirks_elaboration_proposal, n_iterations=1000, fraction_cross_model_proposals=0.25):
     """RJMC with create/delete proposals
 
     At each iteration, flip a biased coin to decide whether to attempt a within-model move
     or a cross-model move.
-    If a within-model move, call iterate.sample_radius_perturbation_proposal().
+    If a within-model move, call iterate.sample_perturbation_proposal().
     If a cross-model move, call iterate.sample_create_delete_proposal().
 
     # TODO: Generalize this a bit (e.g. don't hard-code the expected method names)
@@ -324,9 +324,9 @@ def tree_rjmc(initial_tree, log_prob_func, n_iterations=1000, fraction_cross_mod
 
         # try either a within-model proposal or cross-model proposal
         if np.random.rand() < fraction_cross_model_proposals:
-            proposal_dict = trees[-1].sample_create_delete_proposal()
+            proposal_dict = trees[-1].sample_create_delete_proposal(smirks_elaboration_proposal)
         else:
-            proposal_dict = trees[-1].sample_radius_perturbation_proposal()
+            proposal_dict = trees[-1].sample_perturbation_proposal()
 
         # compute p(x') and p(x')/p(x)
         log_prob_proposal = log_prob_func(proposal_dict['proposal'])
