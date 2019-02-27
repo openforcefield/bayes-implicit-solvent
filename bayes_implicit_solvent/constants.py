@@ -8,5 +8,5 @@ RADIUS_UNIT = unit.nanometer
 
 min_r, max_r = 0.01, 1.0
 # TODO: sort out unit
-min_scale, max_scale = 0.01, 10.0
-# TODO: double-check this
+min_scale, max_scale = -10.0, 10.0
+# TODO: double-check this: some models let this parameter become negative for, say, sulfurs
