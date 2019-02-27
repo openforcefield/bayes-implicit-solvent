@@ -11,21 +11,24 @@ from functools import lru_cache
 
 import numpy as np
 
-from bayes_implicit_solvent.solvation_free_energy import mol_top_sys_pos_list
+from bayes_implicit_solvent.freesolv import mol_top_sys_pos_list
 
 all_oe_mols = [entry[0] for entry in mol_top_sys_pos_list]
 
 
+from openforcefield.typing.engines.smirnoff.forcefield import _validateSMIRKS
+
 # TODO: Replace with minidrugbank or something
 
-# TODO: Implement check_valid_smirks
 def check_valid_smirks(smirks_string):
-    pass
+    return _validateSMIRKS(smirks_string)
 
-
-# TODO: Implement check_all_valid_smirks
 def check_all_valid_smirks(typer):
-    pass
+    for smirks in typer.nodes:
+        if not check_valid_smirks(smirks):
+            return False
+
+    return True
 
 
 # TODO: Implement check no decorators applied to wildcrd
