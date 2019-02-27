@@ -25,6 +25,7 @@ initial_scale_dict[6] = 0.72
 initial_scale_dict[7] = 0.79
 initial_scale_dict[8] = 0.85
 initial_scale_dict[9] = 0.88
+initial_scale_dict[14] = 0.8
 initial_scale_dict[15] = 0.86
 initial_scale_dict[16] = 0.96
 # and default scale factors are 0.8
