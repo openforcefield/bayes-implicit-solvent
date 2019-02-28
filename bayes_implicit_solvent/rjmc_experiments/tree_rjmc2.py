@@ -24,7 +24,7 @@ for i in [17, 35, 53]:
     initial_tree.add_child(smirks, '*')
     initial_tree.un_delete_able_types.add(smirks)
 
-specifiers = ['X1', 'X2', 'X3', 'X4', 'a', 'A']
+specifiers = ['X1', 'X2', 'X3', 'X4', 'a', 'A', '-1', '+0', '+1', '+2']
 atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
 smirks_elaboration_proposal = atom_specification_proposal
 
@@ -80,7 +80,7 @@ n_iterations = 10000
 
 result = tree_rjmc(initial_tree, log_prob, smirks_elaboration_proposal, n_iterations=n_iterations,
                    fraction_cross_model_proposals=0.1)
-with open('elaborate_tree_rjmc_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(mols), n_iterations),
+with open('elaborate_tree_rjmc2_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(mols), n_iterations),
           'wb') as f:
     dump(result, f)
 

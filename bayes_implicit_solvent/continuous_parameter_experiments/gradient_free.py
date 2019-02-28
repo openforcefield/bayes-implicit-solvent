@@ -52,9 +52,9 @@ for path in paths_to_samples:
 
 # 2. Define a likelihood function, including "type-assignment"
 
-from bayes_implicit_solvent.gb_models.obc2_parameters import obc2_model
+from bayes_implicit_solvent.gb_models.obc2_parameters import mbondi_model
 
-type_slices = [obc2_model.apply_to_molecule(mol.mol) for mol in mols]
+type_slices = [mbondi_model.apply_to_molecule(mol.mol) for mol in mols]
 
 
 def construct_arrays(theta):
@@ -93,11 +93,11 @@ def log_prob(theta):
 
 
 if __name__ == '__main__':
-    n_types = obc2_model.number_of_nodes
+    n_types = mbondi_model.number_of_nodes
     print('n_types: {}'.format(n_types))
 
-    initial_radii = np.array(obc2_model.get_radii())
-    initial_scales = np.array(obc2_model.get_scale_factors())
+    initial_radii = np.array(mbondi_model.get_radii())
+    initial_scales = np.array(mbondi_model.get_scale_factors())
     theta0 = np.hstack((initial_radii, initial_scales))
 
     print('initial theta', theta0)
