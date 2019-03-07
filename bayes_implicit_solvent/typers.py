@@ -241,7 +241,8 @@ class FlatGBTyper(SMARTSTyper):
 
 
 class GBTypingTree():
-    def __init__(self, default_parameters={'radius': 0.1 * unit.nanometer}, proposal_sigma=0.01 * unit.nanometer,
+    def __init__(self, default_parameters={'radius': 0.1 * unit.nanometer, 'scale_factor' : 0.85},
+                 proposal_sigmas={'radius': 0.01 * unit.nanometer, 'scale_factor': 0.1},
                  un_delete_able_types=set(['*']), max_nodes=100):
         """We represent a typing scheme using a tree of elaborations (each child is an elaboration on its parent node)
         with types assigned using a last-match-wins scheme.
@@ -253,7 +254,7 @@ class GBTypingTree():
 
         self.G = nx.DiGraph()
         self.default_parameters = default_parameters
-        self.proposal_sigma = proposal_sigma
+        self.proposal_sigmas = proposal_sigmas
         self.un_delete_able_types = un_delete_able_types
         self.max_nodes = max_nodes
         # initialize wildcard root node
@@ -278,6 +279,11 @@ class GBTypingTree():
         types = self.apply_to_molecule(molecule)
         radii = [self.get_radius(self.ordered_nodes[t]) for t in types]
         return convert_to_unitd_array(radii)
+
+    def assign_scale_factors(self, molecule):
+        """Return an array of scale_factors"""
+        types = self.apply_to_molecule(molecule)
+        return np.array([self.get_scale_factor(self.ordered_nodes[t]) for t in types])
 
     def apply_to_molecule_list(self, molecules):
         """Assign types to all molecules in a list"""
@@ -413,6 +419,21 @@ class GBTypingTree():
         """Set the value of the "radius" property for the smirks type"""
         nx.set_node_attributes(self.G, {smirks: radius}, name='radius')
 
+    def get_scale_factor(self, smirks):
+        """Get the value of the "scale_factor" property for the smirks type"""
+        return nx.get_node_attributes(self.G, 'scale_factor')[smirks]
+
+    def get_scale_factors(self):
+        """Get the "scale_factor" properties for all nodes as an array"""
+        scale_factors = np.zeros(self.number_of_nodes)
+        for i in range(self.number_of_nodes):
+            scale_factors[i] = self.get_scale_factor(self.ordered_nodes[i])
+        return scale_factors
+
+    def set_scale_factor(self, smirks, scale_factor):
+        """Set the value of the "scale_factor" property for the smirks type"""
+        nx.set_node_attributes(self.G, {smirks: scale_factor}, name='scale_factor')
+
     def sample_creation_proposal(self, smirks_elaboration_proposal):
         """Propose to randomly decorate an existing type to create a new type,
         with a slightly different radius than the existing type.
@@ -435,17 +456,26 @@ class GBTypingTree():
         # TODO: this bit hard-codes that the only parameter we're interested in is 'radius'
         # TODO: Also interested in scale, for example, and potentially also the SASA term
         parent_radius = self.get_radius(parent_smirks)
-        proposal_radius = self.proposal_sigma * np.random.randn() + parent_radius
+        proposal_radius = self.proposal_sigmas['radius'] * np.random.randn() + parent_radius
         proposal.set_radius(child_smirks, proposal_radius)
+
+        parent_scale_factor = self.get_scale_factor(parent_smirks)
+        proposal_scale_factor = self.proposal_sigmas['scale_factor'] * np.random.randn() + parent_scale_factor
+        proposal.set_scale_factor(child_smirks, proposal_scale_factor)
 
         # compute the log ratio of forward and reverse proposal probabilities
         # TODO: accumulate these properties in a less manual / error-prone way
-        delta_radius = proposal_radius - parent_radius
-        delta = delta_radius / RADIUS_UNIT
-        sigma = self.proposal_sigma / RADIUS_UNIT
+        delta_radius = (proposal_radius - parent_radius) / RADIUS_UNIT
+        sigma_radius = self.proposal_sigmas['radius'] / RADIUS_UNIT
 
         log_prob_forward = - np.log(self.number_of_decorate_able_nodes) \
-                           + norm.logpdf(delta, loc=0, scale=sigma)
+                           + norm.logpdf(delta_radius, loc=0, scale=sigma_radius)
+
+        delta_scale_factor = (proposal_scale_factor - parent_scale_factor)
+        sigma_scale_factor = self.proposal_sigmas['scale_factor']
+
+        log_prob_forward += - np.log(self.number_of_decorate_able_nodes) \
+                           + norm.logpdf(delta_scale_factor, loc=0, scale=sigma_scale_factor)
         log_prob_reverse = - np.log(proposal.number_of_delete_able_nodes)
         log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
         # include contributions from all the choices made in the smirks_elaboration_proposal
@@ -478,11 +508,16 @@ class GBTypingTree():
         parent = self.get_parent_type(leaf_to_delete)
         leaf_radius = self.get_radius(leaf_to_delete)
         parent_radius = self.get_radius(parent)
-        delta_radius = leaf_radius - parent_radius
-        delta = delta_radius / RADIUS_UNIT
-        sigma = self.proposal_sigma / RADIUS_UNIT
+        delta_radius = (leaf_radius - parent_radius) / RADIUS_UNIT
+        sigma_radius = self.proposal_sigmas['radius'] / RADIUS_UNIT
 
-        log_prob_reverse = norm.logpdf(delta, loc=0, scale=sigma)
+        log_prob_reverse = norm.logpdf(delta_radius, loc=0, scale=sigma_radius)
+
+        # TODO: Double-check all this logic!
+        delta_scale_factor = (self.get_scale_factor(leaf_to_delete) - self.get_scale_factor(parent))
+        sigma_scale_factor = self.proposal_sigmas['scale_factor']
+        log_prob_reverse += norm.logpdf(delta_scale_factor, loc=0, scale=sigma_scale_factor)
+
         log_prob_reverse += - np.log(proposal.number_of_decorate_able_nodes)
         log_prob_reverse += smirks_elaboration_proposal.log_prob_forward(parent, None)
         log_prob_forward_over_reverse = log_prob_forward - log_prob_reverse
@@ -548,15 +583,28 @@ class GBTypingTree():
 
         return proposal_dict
 
-    def sample_radius_perturbation_proposal(self):
-        """Pick a type at random and propose to perturb its radius slightly"""
-
+    def sample_perturbation_proposal(self, max_dims_to_perturb=5):
+        """Propose to perturb some continuous parameters slightly"""
+        # TODO: Replace this with a call to one of the continuous parameter samplers...
         proposal = deepcopy(self)
 
-        node = self.sample_node_uniformly_at_random()
-        initial_radius = self.get_radius(node)
-        proposal_radius = self.proposal_sigma * np.random.randn() + initial_radius
-        proposal.set_radius(node, proposal_radius)
+        n_dims_to_perturb = np.random.randint(1,max_dims_to_perturb + 1)
+        n = self.number_of_nodes
+        param_inds = np.arange(2 * n)
+        np.random.shuffle(param_inds)
+        param_inds_to_perturb = param_inds[:n_dims_to_perturb]
+
+        for i in range(n_dims_to_perturb):
+            node = self.ordered_nodes[param_inds_to_perturb[i] % n]
+
+            if (param_inds_to_perturb[i] % n) < n:
+                initial_radius = self.get_radius(node)
+                proposal_radius = self.proposal_sigmas['radius'] * np.random.randn() + initial_radius
+                proposal.set_radius(node, proposal_radius)
+            else:
+                initial_scale_factor = self.get_scale_factor(node)
+                proposal_scale_factor= self.proposal_sigmas['scale_factor'] * np.random.randn() + initial_scale_factor
+                proposal.set_scale_factor(node, proposal_scale_factor)
 
         return {'proposal': proposal,
                 'log_prob_forward_over_reverse': 0,  # symmetric
@@ -567,19 +615,22 @@ class GBTypingTree():
         depth_dict = nx.shortest_path_length(self.G, source='*')
         prefix = '|-'
         lines = []
-        radii = []
+        continuous = []
 
         for n in nx.depth_first_search.dfs_preorder_nodes(self.G, '*'):
             if depth_dict[n] > 0:
                 lines.append('  ' * (depth_dict[n] - 1) + prefix + n)
             else:
                 lines.append(n)
-            radii.append('(r = {:.5} nm)'.format(str(self.get_radius(n) / RADIUS_UNIT)))
 
-        max_length = max(np.array(list(map(len, lines))) + np.array(list(map(len, radii))))
+            r = self.get_radius(n) / unit.angstrom
+            s = self.get_scale_factor(n)
+            continuous.append('(r = {:.2f} Å, s = {:.2f})'.format(r, s ))
+
+        max_length = max(np.array(list(map(len, lines))) + np.array(list(map(len, continuous))))
         width = max_length + 4
 
-        return '\n'.join([lines[i] + radii[i].rjust(width - len(lines[i])) for i in range(len(lines))])
+        return '\n'.join([lines[i] + continuous[i].rjust(width - len(lines[i])) for i in range(len(lines))])
 
     def __hash__(self):
         return hash(tuple(self.G.edges()))
@@ -638,7 +689,7 @@ if __name__ == '__main__':
     for base_type in atomic_number_dict.keys():
         initial_tree.add_child(child_smirks=base_type, parent_smirks='*')
     print(initial_tree)
-    creation_proposals = [initial_tree.sample_creation_proposal()]
+    creation_proposals = [initial_tree.sample_creation_proposal(smirks_elaboration_proposal)]
 
     for _ in range(10):
         print('proposal:')
@@ -646,4 +697,4 @@ if __name__ == '__main__':
         print('log_prob_forward_over_reverse')
         print(creation_proposals[-1]['log_prob_forward_over_reverse'])
 
-        creation_proposals.append(creation_proposals[-1]['proposal'].sample_creation_proposal())
+        creation_proposals.append(creation_proposals[-1]['proposal'].sample_creation_proposal(smirks_elaboration_proposal))
