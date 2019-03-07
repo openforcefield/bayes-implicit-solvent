@@ -189,12 +189,15 @@ class Molecule():
         """
         if self.bounds_check(radii, scale_factors):
             if self.ll == 'student-t':
-                ll = self.log_likelihood(radii, scale_factors)  # TODO: Switch back to Student-t?
+                ll = self.log_likelihood(radii, scale_factors)
             elif self.ll == 'gaussian':
                 ll = self.gaussian_log_likelihood(radii, scale_factors)
             return ll
         else:
             return - np.inf
+
+
+    # TODO: Return also a list of all the predictions
 
     # @lru_cache(maxsize=4)
     # TODO: Maybe use lru_cache again
