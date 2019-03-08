@@ -223,6 +223,15 @@ def jax_vmap_vectorized_loss(theta):
     loss = np.sum(vmap(compute_loss_component)(distance_matrices))
     return loss
 
+
+_ = jax_vmap_vectorized_loss(theta)
+
+t0 = time()
+_ = jax_vmap_vectorized_loss(theta)
+t1 = time()
+timings['Jax vmap vectorized energies'] = (t1 - t0) / n_snapshots
+
+
 _ = grad(jax_vmap_vectorized_loss)(theta)
 
 t0 = time()
@@ -230,6 +239,6 @@ _ = grad(jax_vmap_vectorized_loss)(theta)
 t1 = time()
 timings['Jax vmap vectorized parameter gradients'] = (t1 - t0) / n_snapshots
 
-print('OpenMM reference timing: {:.2f}ms per snapshot\n'.format(reference_timing * 1000))
+print('OpenMM reference timing: {:.3f}ms per snapshot\n'.format(reference_timing * 1000))
 for key in timings:
-    print('{}: {:.2f}ms ({:.2f}x OpenMM reference)'.format(key, timings[key] * 1000, timings[key] / reference_timing))
+    print('{}: {:.3f}ms ({:.3f}x OpenMM reference)'.format(key, timings[key] * 1000, timings[key] / reference_timing))
