@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-def random_walk_mh(x0, log_prob_fun, n_steps=1000, stepsize=0.1):
+def random_walk_mh(x0, log_prob_fun, n_steps=1000, stepsize=0.1, progress_bar=True):
     """Random-walk Metropolis-Hastings with Gaussian proposals.
 
     Parameters
@@ -32,8 +32,12 @@ def random_walk_mh(x0, log_prob_fun, n_steps=1000, stepsize=0.1):
 
     acceptances = 0
     r = range(n_steps)
-    trange = tqdm(r)
-    for n in trange:
+    if progress_bar:
+        range_ = tqdm(r)
+    else:
+        range_ = r
+
+    for n in range_:
 
         x_proposal = traj[-1] + stepsize * np.random.randn(dim)
         log_prob_proposal = log_prob_fun(x_proposal)
@@ -46,8 +50,9 @@ def random_walk_mh(x0, log_prob_fun, n_steps=1000, stepsize=0.1):
             traj.append(traj[-1])
             log_probs.append(log_probs[-1])
 
-        trange.set_postfix({'log_prob': log_probs[-1], 'accept_fraction': float(acceptances) / (1 + n)})
-    del (trange)
+        if progress_bar:
+            range_.set_postfix({'log_prob': log_probs[-1], 'accept_fraction': float(acceptances) / (1 + n)})
+    del (range_)
 
     return np.array(traj), np.array(log_probs), float(acceptances) / n_steps
 
@@ -143,7 +148,7 @@ def langevin(x0, v0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01
 
     log_probs = [log_prob_fun(x)]
 
-    force = lambda x: -grad_log_prob_fun(x)
+    force = grad_log_prob_fun
 
     a = np.exp(- collision_rate * stepsize)
     b = np.sqrt(1 - np.exp(-2 * collision_rate * stepsize))
@@ -326,6 +331,7 @@ def tree_rjmc(initial_tree, log_prob_func, smirks_elaboration_proposal, n_iterat
         if np.random.rand() < fraction_cross_model_proposals:
             proposal_dict = trees[-1].sample_create_delete_proposal(smirks_elaboration_proposal)
         else:
+            # TODO: Replace this with like 100 steps of RWMH
             proposal_dict = trees[-1].sample_perturbation_proposal()
 
         # compute p(x') and p(x')/p(x)
