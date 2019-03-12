@@ -38,6 +38,18 @@ def construct_gbsa_force(system):
     return gbsa
 
 
+from jax.scipy.misc import logsumexp
+from jax import jit
+from simtk import unit
+from bayes_implicit_solvent.constants import kB, temperature
+
+kj_mol_to_kT = 1.0 * unit.kilojoule_per_mole / (kB * temperature)
+
+#@jit
+def one_sided_exp(w_F):
+    DeltaF = - (logsumexp(- w_F) - np.log(len(w_F)))
+    return DeltaF
+
 def get_vacuum_samples(topology, system, positions, n_samples=100, thinning=10000):
     """Runs a simulation for n_samples * thinning timesteps and returns snapshots.
 

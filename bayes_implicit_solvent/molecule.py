@@ -7,6 +7,16 @@ from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_
     get_vacuum_samples, create_implicit_sim, beta
 from bayes_implicit_solvent.freesolv import db, smiles_list, mol_top_sys_pos_list
 
+
+import jax.numpy as np
+from bayes_implicit_solvent.gb_models.jax_gb_models import compute_OBC_energy_vectorized
+
+from jax import grad, jit, vmap
+from bayes_implicit_solvent.solvation_free_energy import kj_mol_to_kT, one_sided_exp
+
+from scipy.spatial.distance import pdist, squareform
+from bayes_implicit_solvent.utils import get_charges
+
 # TODO: Maybe resurrect this...
 # from functools import lru_cache
 
@@ -98,6 +108,7 @@ class Molecule():
 
         self._n_samples = n_samples
         self._thinning = thinning
+        self.charges = get_charges(self.sys)
 
         if type(vacuum_samples) == type(None):
             if verbose: print('collecting vacuum samples...')
@@ -107,6 +118,8 @@ class Molecule():
         else:
             self.vacuum_traj = vacuum_samples
             self._n_samples = len(vacuum_samples)
+
+        self.distance_matrices = np.array([squareform(pdist(snapshot / unit.nanometer)) for snapshot in self.vacuum_traj])
 
         # both in reduced units
         self.experimental_value = beta * (float(db[mol_index_in_freesolv][3]) * unit.kilocalorie_per_mole)
@@ -138,6 +151,18 @@ class Molecule():
         assert (len(radii) == self.n_atoms)
         assert (len(scaling_factors) == self.n_atoms)
         return predict_solvation_free_energy(self.implicit_sim, self.vacuum_traj, radii, scaling_factors)
+
+
+    #@jit
+    def predict_solvation_free_energy_jax(self, radii, scaling_factors):
+        @jit
+        def compute_component(distance_matrix):
+            return compute_OBC_energy_vectorized(distance_matrix, radii, scaling_factors, self.charges)
+
+        W_F = vmap(compute_component)(self.distance_matrices)
+
+        w_F = W_F * kj_mol_to_kT
+        return one_sided_exp(w_F)
 
     def gaussian_log_likelihood(self, radii, scaling_factors):
         """Un-normalized log-likelihood using Gaussian located at experimentally measured value, with
