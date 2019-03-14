@@ -31,11 +31,25 @@ from bayes_implicit_solvent.marginal_likelihood.two_types_radius_and_scale_forwa
 from bayes_implicit_solvent.marginal_likelihood.single_type_forward_ais import mols
 
 
+prior_location = np.array([0.15, 0.8])
+radius_lower_bound = 0.01
+scale_lower_bound = 0.1
+
+from scipy.stats import norm
+Z_r = (1 - norm.cdf(radius_lower_bound, loc=prior_location[0]))
+Z_s = (1 - norm.cdf(scale_lower_bound, loc=prior_location[1]))
+log_Z_prior_one_type = np.log((Z_r * Z_s))
+log_Z_prior_two_types = np.log((Z_r * Z_s)**2)
+
+AIS_guess_free_energy_difference = 3.2675 # current best guess of - (log_Z_posterior_2 - log_Z_posterior_1)
+
 def log_posterior(theta):
     if len(theta) == 2:
-        return log_posterior_one_type(theta)
+        return log_posterior_one_type(theta) - log_Z_prior_one_type
     elif len(theta) == 4:
-        return log_posterior_two_types(theta)
+        # TODO: Revisit if I want to include a bias here: currently adding in my current guess for the free energy difference
+        # TODO: which I hope will approximately flatten sampling between the two models...
+        return log_posterior_two_types(theta) - log_Z_prior_two_types + AIS_guess_free_energy_difference
     else:
         raise (RuntimeError())
 
@@ -48,44 +62,45 @@ def log_prob(tree):
 from bayes_implicit_solvent.samplers import tree_rjmc
 
 n_iterations = 10000
-proposal_sigmas = [1e-3, 5e-3, 1e-2, 5e-2, 1e-1]
-n_types_trajs = []
-tree_trajs = []
-log_prob_trajs = []
-log_accept_prob_trajs = []
-for proposal_sigma in proposal_sigmas:
-    initial_tree = GBTypingTree(max_nodes=2)
-    initial_tree.proposal_sigmas['radius'] = proposal_sigma * RADIUS_UNIT
-    initial_tree.proposal_sigmas['scale_factor'] = proposal_sigma
-    initial_tree.is_decorate_able = lambda \
-        node: node == '*'  # overwrite method that currently returns False if the node is the root node...
+proposal_sigmas = np.linspace(1e-3, 1e-1, 50)
+inds = np.arange(len(proposal_sigmas))
+np.random.shuffle(inds)
 
-    # TODO: clue: the amount of time it spends in each model may be related to proposal sigmas
-    # TODO: clue: I see the progress bar is saying `avg. accept. prob.=nan` but it hasn't resulted in an error!
-    # initial_tree.add_child('[#6]', '*')
-    print('initial tree:')
-    print(initial_tree)
+if __name__ == "__main__":
+    for i in inds:
+        proposal_sigma = proposal_sigmas[i]
+        initial_tree = GBTypingTree(max_nodes=2)
+        initial_tree.proposal_sigmas['radius'] = proposal_sigma * RADIUS_UNIT
+        initial_tree.proposal_sigmas['scale_factor'] = proposal_sigma
+        initial_tree.is_decorate_able = lambda \
+            node: node == '*'  # overwrite method that currently returns False if the node is the root node...
 
-    result = tree_rjmc(initial_tree, log_prob, smirks_elaboration_proposal, n_iterations=n_iterations,
-                       fraction_cross_model_proposals=0.25)
-    traj = result["traj"]
-    log_probs = result["log_probs"]
-    log_acceptance_probabilities = result["log_acceptance_probabilities"]
+        # TODO: clue: the amount of time it spends in each model may be related to proposal sigmas
+        # TODO: clue: I see the progress bar is saying `avg. accept. prob.=nan` but it hasn't resulted in an error!
+        # TODO: inspect what would be the average cross-model acceptance probability throughout the trajectory? (side-effect: get a better estimate of the ratio of marginal likelihoods from the simulation output...)
+        # TODO: normalize the prior and re-do this. could also add a bias to one of the models so that the marginal likelihood of each is identical...
+        # initial_tree.add_child('[#6]', '*')
+        print('initial tree:')
+        print(initial_tree)
 
-    n_types_trajs.append(np.array([tree.number_of_nodes for tree in result['traj']]))
-    tree_trajs.append(traj)
-    log_prob_trajs.append(log_probs)
-    log_accept_prob_trajs.append(log_acceptance_probabilities)
+        result = tree_rjmc(initial_tree, log_prob, smirks_elaboration_proposal, n_iterations=n_iterations,
+                           fraction_cross_model_proposals=0.25)
+        traj = result["traj"]
+        log_probs = result["log_probs"]
+        log_acceptance_probabilities = result["log_acceptance_probabilities"]
 
-    print('proposal_sigma={}'.format(proposal_sigma))
-    print('time spent in each model: n=1: {}, n=2: {}'.format(sum(n_types_trajs[-1] == 1), sum(n_types_trajs[-1] == 2)))
+        n_types_traj = np.array([tree.number_of_nodes for tree in result['traj']])
 
-np.savez('rjmc_test.npz',
-         proposal_sigmas=proposal_sigmas,
-         n_types_trajs=n_types_trajs,
-         log_prob_trajs=log_prob_trajs,
-         log_accept_prob_trajs=log_accept_prob_trajs,
-         tree_strings=[[str(tree) for tree in traj] for traj in tree_trajs],
-         radii=[[tree.get_radii() for tree in traj] for traj in tree_trajs],
-         scales=[[tree.get_scale_factors() for tree in traj] for traj in tree_trajs],
-         )
+        print('proposal_sigma={}'.format(proposal_sigma))
+        print('time spent in each model: n=1: {}, n=2: {}'.format(sum(n_types_traj == 1), sum(n_types_traj == 2)))
+
+        np.savez('rjmc_test_fine_grid/proposal_sigmas[{}].npz'.format(i),
+                 proposal_sigma=proposal_sigma,
+                 n_types_traj=n_types_traj,
+                 log_probs=log_probs,
+                 log_accept_prob_traj=log_acceptance_probabilities,
+                 proposal_dims=result['proposal_move_dimensions'],
+                 tree_strings=[str(tree) for tree in traj],
+                 radii=[tree.get_radii() for tree in traj],
+                 scales=[tree.get_scale_factors() for tree in traj],
+                 )
