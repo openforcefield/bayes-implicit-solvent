@@ -108,24 +108,24 @@ class BondSpecificationProposal(DiscreteProposal):
         print('bond_specifiers (replace "~" bonds)\n\t', self.bond_specifiers)
 
     def log_prob_forward(self, initial, proposed):
-        if '~' not in initial_smirks:
+        if '~' not in initial:
             # contained no any-bonds
             log_prob_forward = - np.inf
         else:
-            n_bonds = len(initial_smirks.split('~')) - 1
+            n_bonds = len(initial.split('~')) - 1
             number_of_ways_to_go_forward = len(self.bond_specifiers) * n_bonds
             log_prob_forward = - np.log(number_of_ways_to_go_forward)
         return log_prob_forward
 
-    def sample(self, initial_smirks):
+    def sample(self, initial):
         """Look at unspecified bonds, randomly replace them with one of the bond specifiers"""
-        if '~' not in initial_smirks:
+        if '~' not in initial:
             # contained no any-bonds
-            proposal_smirks = initial_smirks
+            proposal_smirks = initial
             number_of_ways_to_go_forward = 0  # calling -np.log(0) clutters up the terminal a bit
             log_prob_forward = - np.inf
         else:
-            components = initial_smirks.split('~')
+            components = initial.split('~')
             bonds = ['~'] * (len(components) - 1)
             bonds[np.random.randint(len(bonds))] = np.random.choice(self.bond_specifiers)
 
@@ -139,7 +139,7 @@ class BondSpecificationProposal(DiscreteProposal):
 
         return {
             'proposal': proposal_smirks,
-            'log_prob_forward_over_reverse': self.log_prob_forward_over_reverse(initial_smirks, proposed_smirks),
+            'log_prob_forward_over_reverse': self.log_prob_forward_over_reverse(initial, proposal_smirks),
         }
 
 
@@ -415,6 +415,11 @@ class GBTypingTree():
             radii[i] = self.get_radius(self.ordered_nodes[i]) / RADIUS_UNIT
         return radii
 
+    def set_radii(self, radii):
+        assert(len(radii) == self.number_of_nodes)
+        for i in range(self.number_of_nodes):
+            self.set_radius(self.ordered_nodes[i], radii[i] * RADIUS_UNIT)
+
     def set_radius(self, smirks, radius):
         """Set the value of the "radius" property for the smirks type"""
         nx.set_node_attributes(self.G, {smirks: radius}, name='radius')
@@ -433,6 +438,11 @@ class GBTypingTree():
     def set_scale_factor(self, smirks, scale_factor):
         """Set the value of the "scale_factor" property for the smirks type"""
         nx.set_node_attributes(self.G, {smirks: scale_factor}, name='scale_factor')
+
+    def set_scale_factors(self, scale_factors):
+        assert (len(scale_factors) == self.number_of_nodes)
+        for i in range(self.number_of_nodes):
+            self.set_scale_factor(self.ordered_nodes[i], scale_factors[i])
 
     def sample_creation_proposal(self, smirks_elaboration_proposal):
         """Propose to randomly decorate an existing type to create a new type,
@@ -583,28 +593,21 @@ class GBTypingTree():
 
         return proposal_dict
 
-    def sample_perturbation_proposal(self, max_dims_to_perturb=5):
+    def sample_perturbation_proposal(self):
         """Propose to perturb some continuous parameters slightly"""
         # TODO: Replace this with a call to one of the continuous parameter samplers...
         proposal = deepcopy(self)
 
-        n_dims_to_perturb = np.random.randint(1,max_dims_to_perturb + 1)
-        n = self.number_of_nodes
-        param_inds = np.arange(2 * n)
-        np.random.shuffle(param_inds)
-        param_inds_to_perturb = param_inds[:n_dims_to_perturb]
 
-        for i in range(n_dims_to_perturb):
-            node = self.ordered_nodes[param_inds_to_perturb[i] % n]
-
-            if (param_inds_to_perturb[i] % n) < n:
-                initial_radius = self.get_radius(node)
-                proposal_radius = self.proposal_sigmas['radius'] * np.random.randn() + initial_radius
-                proposal.set_radius(node, proposal_radius)
-            else:
-                initial_scale_factor = self.get_scale_factor(node)
-                proposal_scale_factor= self.proposal_sigmas['scale_factor'] * np.random.randn() + initial_scale_factor
-                proposal.set_scale_factor(node, proposal_scale_factor)
+        node = self.sample_node_uniformly_at_random()
+        if np.random.randn() < 0:
+            initial_radius = self.get_radius(node)
+            proposal_radius = self.proposal_sigmas['radius'] * np.random.randn() + initial_radius
+            proposal.set_radius(node, proposal_radius)
+        else:
+            initial_scale_factor = self.get_scale_factor(node)
+            proposal_scale_factor= self.proposal_sigmas['scale_factor'] * np.random.randn() + initial_scale_factor
+            proposal.set_scale_factor(node, proposal_scale_factor)
 
         return {'proposal': proposal,
                 'log_prob_forward_over_reverse': 0,  # symmetric
