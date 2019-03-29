@@ -152,6 +152,15 @@ def get_predictions(theta, types):
     return np.array([predict_solvation_free_energy_jax(theta, distance_matrices[i], charges[i], types[i]) for i in range(len(charges))])
 
 
+def log_likelihood_of_predictions(predictions):
+    if ll == 'student-t':
+        log_likelihood_value = np.sum(student_t.logpdf(predictions - expt_means, scale=expt_uncs, df=7))
+    elif ll == 'gaussian':
+        log_likelihood_value = np.sum(norm.logpdf(predictions - expt_means, scale=expt_uncs))
+    else:
+        raise (RuntimeError('invalid ll value'))
+    return log_likelihood_value
+
 from scipy.stats import t as student_t
 def log_prob(tree):
     log_prior_value = check_no_empty_types(tree)
@@ -164,12 +173,7 @@ def log_prob(tree):
         types = tree.apply_to_molecule_list(oemols)
         predictions = get_predictions(theta, types)
 
-        if ll == 'student-t':
-            log_likelihood_value = np.sum(student_t.logpdf(predictions - expt_means, scale=expt_uncs, df=7))
-        elif ll == 'gaussian':
-            log_likelihood_value = np.sum(norm.logpdf(predictions - expt_means, scale=expt_uncs))
-        else:
-            raise(RuntimeError('invalid ll value'))
+        log_likelihood_value = log_likelihood_of_predictions(predictions)
         return log_prior_value + log_likelihood_value
     else:
         return log_prior_value
@@ -177,47 +181,60 @@ def log_prob(tree):
 
 from bayes_implicit_solvent.samplers import tree_rjmc
 
-import itertools
-n_iterations_per_chunk = 10
-n_chunks = 10
-n_iterations = n_chunks * n_iterations_per_chunk
+n_within_model_steps_per_cross_model_proposal = 100
+n_cross_model_proposals = 1000
+n_iterations = n_within_model_steps_per_cross_model_proposal * n_cross_model_proposals
 # run jax-based
 
 trajs = []
-log_prob_trajs = []
-log_acceptance_probabilities_trajs = []
-n_types_trajs = []
-proposal_dim_trajs = []
 
 from tqdm import tqdm
 
-trange = tqdm(range(n_chunks))
+trange = tqdm(range(n_cross_model_proposals))
+
+def make_one_rjmc_proposal(tree):
+    result = tree_rjmc(tree, log_prob, smirks_elaboration_proposal, n_iterations=1,
+                       fraction_cross_model_proposals=1.0, progress_bar=False)
+    return result['traj'][-1]
+
+
+tree_traj = [initial_tree]
+n_types_traj = [initial_tree.number_of_nodes]
+within_model_trajs = []
+
+from bayes_implicit_solvent.samplers import random_walk_mh
+
 for chunk in trange:
-    result = tree_rjmc(initial_tree, log_prob, smirks_elaboration_proposal, n_iterations=n_iterations_per_chunk,
-                       fraction_cross_model_proposals=0.25)
-    
-    trajs.append(result["traj"][1:])
-    initial_tree = trajs[-1][-1]
-    log_prob_trajs.append(result["log_probs"][1:])
-    log_acceptance_probabilities_trajs.append(result["log_acceptance_probabilities"])
-    n_types_trajs.append(np.array([tree.number_of_nodes for tree in result['traj']]))
-    proposal_dim_trajs.append(result['proposal_move_dimensions'])
+    tree = make_one_rjmc_proposal(tree_traj[-1])
+    types = tree.apply_to_molecule_list(oemols)
+    theta0 = np.hstack([tree.get_radii(), tree.get_scale_factors()])
 
-    traj = list(itertools.chain(*trajs))
-    log_probs = np.hstack(log_prob_trajs)
-    log_acceptance_probabilities = np.hstack(log_acceptance_probabilities_trajs)
-    n_types_traj = np.hstack(n_types_trajs)
-    proposal_dims = np.hstack(proposal_dim_trajs)
+    N = int(len(theta0) / 2)
+    stepsize = np.ones(N * 2)
+    stepsize[:N] = 0.0005
+    stepsize[N:] = 0.001
+    if ll == 'gaussian':
+        stepsize *= 0.25
 
+    def log_prob_fun(theta):
+        predictions = get_predictions(theta, types)
+        return log_prior(theta) + log_likelihood_of_predictions(predictions)
+
+
+
+    mh_result = random_walk_mh(theta0, log_prob_fun, n_steps=n_within_model_steps_per_cross_model_proposal, stepsize=stepsize)
+
+    theta = mh_result[0][-1]
+    tree.set_radii(theta[:N])
+    tree.set_scale_factors(theta[N:])
+
+    tree_traj.append(tree)
+    n_types_traj.append(N)
+    within_model_trajs.append(mh_result[0])
 
     trange.set_postfix(max_n_types=max(n_types_traj), min_n_types=min(n_types_traj))
 
     np.savez('elaborate_tree_rjmc_march29_run_n_compounds={}_n_iter={}_{}_ll.npz'.format(len(mols), n_iterations, ll),
              n_types_traj=n_types_traj,
-             log_probs=log_probs,
-             log_accept_prob_traj=log_acceptance_probabilities,
-             proposal_dims=proposal_dims,
-             tree_strings=[str(tree) for tree in traj],
-             radii=[tree.get_radii() for tree in traj],
-             scales=[tree.get_scale_factors() for tree in traj],
+             within_model_trajs=within_model_trajs,
              )
