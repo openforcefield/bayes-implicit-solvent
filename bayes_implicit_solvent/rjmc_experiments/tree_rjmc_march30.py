@@ -1,6 +1,7 @@
-from bayes_implicit_solvent.molecule import Molecule
-from simtk import unit
 from numpy import load
+from simtk import unit
+
+from bayes_implicit_solvent.molecule import Molecule
 
 
 def sample_path_to_unitted_snapshots(path_to_npy_samples):
@@ -57,30 +58,13 @@ for path in paths_to_samples:
 
 oemols = [mol.mol for mol in mols]
 import numpy as np
-element_inds = []
-all_elements = ['S', 'Cl', 'F', 'C', 'I', 'N', 'Br', 'H', 'P', 'O']
-N = len(all_elements)
-element_dict = dict(zip(all_elements, range(len(all_elements))))
-
-initial_radius_dict = dict(H=0.12, C=0.17, N=0.155, O=0.15, F=0.15,
-                   P=0.185, S=0.18, Cl=0.17, Br=0.15, I=0.15)
-initial_scaling_factor_dict = dict(H=0.85, C=0.72, N=0.79, O=0.85, F=0.88,
-                           P=0.86, S=0.96, Cl=0.80, Br=0.80, I=0.80)
-
-
-for mol in mols:
-    element_inds.append(np.array([element_dict[a.element.symbol] for a in list(mol.top.atoms())]))
 
 from jax import jit, vmap
 from bayes_implicit_solvent.gb_models.jax_gb_models import compute_OBC_energy_vectorized
 from bayes_implicit_solvent.solvation_free_energy import kj_mol_to_kT, one_sided_exp
 
 @jit
-def predict_solvation_free_energy_jax(theta, distance_matrices, charges, element_ind_array):
-    radii_, scaling_factors_ = theta[:N], theta[N:]
-
-    radii = radii_[element_ind_array]
-    scaling_factors = scaling_factors_[element_ind_array]
+def predict_solvation_free_energy_jax(radii, scaling_factors, distance_matrices, charges):
 
     @jit
     def compute_component(distance_matrix):
@@ -94,12 +78,11 @@ def predict_solvation_free_energy_jax(theta, distance_matrices, charges, element
 distance_matrices = [mol.distance_matrices for mol in mols]
 charges = [mol.charges for mol in mols]
 
-expt_means = unreduce(np.array([mol.experimental_value for mol in mols]))
-expt_uncs = unreduce(np.array([mol.experimental_uncertainty for mol in mols]))
+expt_means = np.array([mol.experimental_value for mol in mols])
+expt_uncs = np.array([mol.experimental_uncertainty for mol in mols])
 
 from bayes_implicit_solvent.typers import RADIUS_UNIT
 
-from bayes_implicit_solvent.freesolv import smiles_list
 from bayes_implicit_solvent.typers import AtomSpecificationProposal
 
 np.random.seed(0)
@@ -108,8 +91,8 @@ from bayes_implicit_solvent.gb_models.obc2_parameters import mbondi_model
 
 initial_tree = mbondi_model
 initial_tree.remove_node('[#14]') # otherwise everything is -inf, because this type will be empty
-initial_tree.proposal_sigmas['radius'] = 5 * 1e-2 * RADIUS_UNIT
-initial_tree.proposal_sigmas['scale_factor'] = 5 * 1e-2
+initial_tree.proposal_sigmas['radius'] = 1e-2 * RADIUS_UNIT
+initial_tree.proposal_sigmas['scale_factor'] = 1e-2
 
 # add one more parameter per element appearing in FreeSolv but not specified in obc2 parameter set to initial tree
 for i in [17, 35, 53]:
@@ -117,16 +100,52 @@ for i in [17, 35, 53]:
     initial_tree.add_child(smirks, '*')
     initial_tree.un_delete_able_types.add(smirks)
 
-specifiers = ['X1', 'X2', 'X3', 'X4', 'a', 'A', '-1', '+0', '+1', '+2']
+from bayes_implicit_solvent.constants import RADIUS_UNIT
+
+# result of running 100,000 iterations of RW-MH on elemental types...
+initial_radii_dict = {'[#16]': 0.24621565686059527,
+                      '[#17]': 0.15795923569608972,
+                      '[#9]': 0.27500468157621677,
+                      '[#6]': 0.1738484824704355,
+                      '[#53]': 0.25868331770794,
+                      '[#7]': 0.16261158548916488,
+                      '[#35]': 0.1792698694454788,
+                      '[#1]': 0.06597002277367196,
+                      '[#15]': 0.18953871099991065,
+                      '[#8]': 0.1666397113462544}
+initial_scale_factor_dict = {'[#16]': 0.8085769087184602,
+                             '[#17]': 1.3791871302846694,
+                             '[#9]': 0.6320219796553284,
+                             '[#6]': 0.8753321883965008,
+                             '[#53]': 0.7366983185149338,
+                             '[#7]': 0.9768357275040189,
+                             '[#35]': 0.9873510702770019,
+                             '[#1]': 0.6464220642731573,
+                             '[#15]': 0.6735593070974721,
+                             '[#8]': 0.8309625595094741}
+
+for s in initial_tree.ordered_nodes:
+    if s in initial_radii_dict:
+        initial_tree.set_radius(s, initial_radii_dict[s] * RADIUS_UNIT)
+        initial_tree.set_scale_factor(s, initial_scale_factor_dict[s])
+
+#ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'a', 'A']
+#charge_specifiers = ['-1', '+0', '+1', '+2']
+#hydrogen_count_specifiers = ['H0', 'H1', 'H2', 'H3', 'H4']
+
+specifiers = ['r0',
+              'H0',
+              'X1', 'X2', 'X3', 'X4',
+              'a', 'A',
+              '-1', '+0', '+1', '+2']
 atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
 smirks_elaboration_proposal = atom_specification_proposal
 
 print('initial tree:')
 print(initial_tree)
 
-ll = 'student-t'
-
-import os
+#ll = 'student-t'
+ll = 'gaussian'
 
 name = 'tree_rjmc_n_config={}_{}_ll'.format(n_configuration_samples, ll)
 
@@ -149,7 +168,12 @@ def log_prior(theta):
 
 
 def get_predictions(theta, types):
-    return np.array([predict_solvation_free_energy_jax(theta, distance_matrices[i], charges[i], types[i]) for i in range(len(charges))])
+    N = int(len(theta) / 2)
+    radii_, scaling_factors_ = theta[:N], theta[N:]
+
+    radii = [radii_[types[i]] for i in range(len(types))]
+    scaling_factors = [scaling_factors_[types[i]] for i in range(len(types))]
+    return np.array([predict_solvation_free_energy_jax(radii[i], scaling_factors[i], distance_matrices[i], charges[i]) for i in range(len(charges))])
 
 
 def log_likelihood_of_predictions(predictions):
@@ -181,8 +205,8 @@ def log_prob(tree):
 
 from bayes_implicit_solvent.samplers import tree_rjmc
 
-n_within_model_steps_per_cross_model_proposal = 100
-n_cross_model_proposals = 1000
+n_within_model_steps_per_cross_model_proposal = 25
+n_cross_model_proposals = 4000
 n_iterations = n_within_model_steps_per_cross_model_proposal * n_cross_model_proposals
 # run jax-based
 
@@ -204,6 +228,20 @@ within_model_trajs = []
 
 from bayes_implicit_solvent.samplers import random_walk_mh
 
+def save():
+    name = 'elaborate_tree_rjmc_march30_run_n_compounds={}_n_iter={}_{}_ll_small_proposals'.format(len(mols),
+                                                                                                   n_iterations, ll)
+    np.savez(name + '.npz',
+             n_types_traj=n_types_traj,
+             within_model_trajs=within_model_trajs,
+             )
+
+    from pickle import dump
+    with open(name + '.pkl', 'wb') as f:
+        dump(tree_traj, f)
+
+from copy import deepcopy
+
 for chunk in trange:
     tree = make_one_rjmc_proposal(tree_traj[-1])
     types = tree.apply_to_molecule_list(oemols)
@@ -211,8 +249,9 @@ for chunk in trange:
 
     N = int(len(theta0) / 2)
     stepsize = np.ones(N * 2)
-    stepsize[:N] = 0.0005
-    stepsize[N:] = 0.001
+    # TODO: Improve heuristic... / Replace with MALA / HMC...
+    stepsize[:N] = 0.005 / 10
+    stepsize[N:] = 0.01 / 10
     if ll == 'gaussian':
         stepsize *= 0.25
 
@@ -220,21 +259,20 @@ for chunk in trange:
         predictions = get_predictions(theta, types)
         return log_prior(theta) + log_likelihood_of_predictions(predictions)
 
-
-
     mh_result = random_walk_mh(theta0, log_prob_fun, n_steps=n_within_model_steps_per_cross_model_proposal, stepsize=stepsize)
 
     theta = mh_result[0][-1]
     tree.set_radii(theta[:N])
     tree.set_scale_factors(theta[N:])
 
-    tree_traj.append(tree)
+    tree_traj.append(deepcopy(tree))
     n_types_traj.append(N)
-    within_model_trajs.append(mh_result[0])
+    for t in mh_result[0]:
+        within_model_trajs.append(t)
 
     trange.set_postfix(max_n_types=max(n_types_traj), min_n_types=min(n_types_traj))
 
-    np.savez('elaborate_tree_rjmc_march29_run_n_compounds={}_n_iter={}_{}_ll.npz'.format(len(mols), n_iterations, ll),
-             n_types_traj=n_types_traj,
-             within_model_trajs=within_model_trajs,
-             )
+    if (chunk + 1) % 500 == 0:
+        save()
+
+save()
