@@ -135,7 +135,7 @@ def log_prob(theta, types):
 
 
 from jax import grad
-grad_log_likelihood_component = jit(grad(log_likelihood_component))
+grad_log_likelihood_component = grad(log_likelihood_component)
 
 #@jit # TODO: may have to remove!
 def grad_log_likelihood(theta, types):
