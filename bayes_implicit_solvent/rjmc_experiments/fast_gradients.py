@@ -18,7 +18,7 @@ paths_to_samples = glob(path_to_vacuum_samples)
 from numpy import random
 random.seed(0)
 random.shuffle(paths_to_samples)
-paths_to_samples = paths_to_samples[:20]
+paths_to_samples = paths_to_samples[:40]
 
 print('number of molecules being considered: {}'.format(len(paths_to_samples)))
 
@@ -176,6 +176,18 @@ if __name__ == '__main__':
     i = 0
     d, c, mu, unc = distance_matrices[i], charges[i], expt_means[i], expt_uncs[i]
     _ = grad_log_likelihood_component(dummy_theta, dummy_types[i], d, c, mu, unc)
+    t1 = time()
+    print('...that took {:.4}s'.format(t1 - t0))
+
+    print('computing grad_log_likelihood for first time...')
+    t0 = time()
+    _ = grad_log_likelihood(dummy_theta, dummy_types)
+    t1 = time()
+    print('...that took {:.4}s'.format(t1 - t0))
+
+    print('computing grad_log_likelihood for second time...')
+    t0 = time()
+    _ = grad_log_likelihood(dummy_theta, dummy_types)
     t1 = time()
     print('...that took {:.4}s'.format(t1 - t0))
 
