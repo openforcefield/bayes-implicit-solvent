@@ -109,12 +109,15 @@ def get_predictions(theta, types):
     return np.array([predict_solvation_free_energy_jax(radii[i], scaling_factors[i], distance_matrices[i], charges[i]) for i in range(len(charges))])
 
 
+def norm_logpdf(x, mu, sigma):
+    """Replacing jax.scipy.stats.norm.logpdf...."""
+    return - (x - mu)**2 / (2 * sigma**2) - np.log(np.sqrt(2 * np.pi * sigma **2))
 
 def log_likelihood_of_predictions(predictions):
     if ll == 'student-t':
         log_likelihood_value = np.sum(student_t.logpdf(predictions - expt_means, scale=expt_uncs, df=7))
     elif ll == 'gaussian':
-        log_likelihood_value = np.sum(norm.logpdf(predictions - expt_means, scale=expt_uncs))
+        log_likelihood_value = np.sum(norm_logpdf(x=predictions, mu=expt_means, sigma=expt_uncs))
     else:
         raise (RuntimeError('invalid ll value'))
     return log_likelihood_value
