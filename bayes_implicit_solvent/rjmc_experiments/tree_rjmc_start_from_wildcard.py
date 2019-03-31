@@ -88,9 +88,9 @@ from bayes_implicit_solvent.typers import AtomSpecificationProposal
 np.random.seed(0)
 
 from bayes_implicit_solvent.typers import GBTypingTree
-initial_tree = GBTypingTree(max_nodes=10)
-initial_tree.proposal_sigmas['radius'] = 5 * 1e-2 * RADIUS_UNIT
-initial_tree.proposal_sigmas['scale_factor'] = 5 * 1e-2
+initial_tree = GBTypingTree(max_nodes=20)
+initial_tree.proposal_sigmas['radius'] = 1e-2 * RADIUS_UNIT
+initial_tree.proposal_sigmas['scale_factor'] = 1e-2
 
 initial_tree.add_child('[*]', '*') # TODO: fix this stupidity, by changing all references to '*' as root to '[*]' as root...
 initial_tree.un_delete_able_types.add('[*]')
@@ -202,7 +202,7 @@ within_model_trajs = []
 from bayes_implicit_solvent.samplers import random_walk_mh
 
 def save():
-    name = 'elaborate_tree_rjmc_march31_run_n_compounds={}_n_iter={}_{}_ll_big_proposals'.format(len(mols),
+    name = 'elaborate_tree_rjmc_march31_run_n_compounds={}_n_iter={}_{}_ll_small_proposals'.format(len(mols),
                                                                                                    n_iterations, ll)
     np.savez(name + '.npz',
              n_types_traj=n_types_traj,
