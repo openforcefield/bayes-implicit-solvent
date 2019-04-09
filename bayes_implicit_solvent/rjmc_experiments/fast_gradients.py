@@ -1,4 +1,10 @@
-# TODO: CURRENTLY HARD-CODES GAUSSIAN LIKELIHOOD...
+
+"""compute components of the gradient separately and then sum them.."""
+
+# TODO: Generalize. CURRENTLY HARD-CODES GAUSSIAN LIKELIHOOD...
+
+from jax.config import config
+config.update("jax_debug_nans", True)
 
 from bayes_implicit_solvent.molecule import Molecule
 from numpy import load
@@ -18,7 +24,7 @@ paths_to_samples = glob(path_to_vacuum_samples)
 from numpy import random
 random.seed(0)
 random.shuffle(paths_to_samples)
-paths_to_samples = paths_to_samples[:40]
+paths_to_samples = paths_to_samples[:10]
 
 print('number of molecules being considered: {}'.format(len(paths_to_samples)))
 
@@ -85,16 +91,20 @@ from jax.scipy.stats import norm
 radius_prior = 0.15
 scale_prior = 0.8
 
-N_types = 5
+N_types = 2
 from numpy import random
 dummy_types = [random.randint(0, N_types, mol.mol.NumAtoms()) for mol in mols]
 
 dummy_theta = np.hstack([np.ones(N_types) * radius_prior, np.ones(N_types) * scale_prior])
 
+def norm_logpdf(x, mu, sigma):
+    """Replacing jax.scipy.stats.norm.logpdf...."""
+    return - (x - mu)**2 / (2 * sigma**2) - np.log(np.sqrt(2 * np.pi * sigma **2))
+
 def log_prior(theta):
     n = int(len(theta) / 2)
     radii, scales = theta[:n], theta[n:]
-    return np.sum(norm.logpdf(radii - radius_prior)) + np.sum(norm.logpdf(scales - scale_prior))
+    return np.sum(norm_logpdf(radii, radius_prior, 1.0)) + np.sum(norm_logpdf(scales, scale_prior, 1.0))
 
 def get_predictions(theta, types):
     N = int(len(theta) / 2)
@@ -104,25 +114,29 @@ def get_predictions(theta, types):
     scaling_factors = [scaling_factors_[types[i]] for i in range(len(types))]
     return np.array([predict_solvation_free_energy_jax(radii[i], scaling_factors[i], distance_matrices[i], charges[i]) for i in range(len(charges))])
 
-def norm_logpdf(x, mu, sigma):
-    """Replacing jax.scipy.stats.norm.logpdf...."""
-    return - (x - mu)**2 / (2 * sigma**2) - np.log(np.sqrt(2 * np.pi * sigma **2))
+
 
 def log_likelihood_of_predictions_gaussian(predictions):
     return np.sum(norm_logpdf(x=predictions, mu=expt_means, sigma=expt_uncs))
 
-@jit
-def log_likelihood_component(theta, type_vector, distance_matrices, charges, expt_mean, expt_unc):
+def predict_component(theta, type_vector, distance_matrices, charges):
     N = int(len(theta) / 2)
     radii_, scaling_factors_ = theta[:N], theta[N:]
 
     radii = radii_[type_vector]
     scaling_factors = scaling_factors_[type_vector]
     prediction = predict_solvation_free_energy_jax(radii, scaling_factors, distance_matrices, charges)
+    return prediction
+
+
+@jit
+def log_likelihood_component(theta, type_vector, distance_matrices, charges, expt_mean, expt_unc):
+    prediction = predict_component(theta, type_vector, distance_matrices, charges)
     return norm_logpdf(x=prediction, mu=expt_mean, sigma=expt_unc)
 
 from scipy.stats import t as student_t
 
+# TODO: Replace student_t.logpdf with jax-friendly version...
 @jit
 def log_likelihood_of_predictions_student_t(predictions):
     return np.sum(student_t.logpdf(predictions - expt_means, scale=expt_uncs, df=7))
@@ -142,26 +156,28 @@ def grad_log_likelihood(theta, types):
     # TODO: REPLACE WITH VMAP
     g = np.zeros(len(theta))
     for i in range(len(types)):
-
         d, c, mu, unc = distance_matrices[i], charges[i], expt_means[i], expt_uncs[i]
-        g += grad_log_likelihood_component(theta, types[i], d, c, mu, unc)
+        type_vector = types[i]
+        # assert(len(type_vector) == len(c))
+        g_ = grad_log_likelihood_component(theta, type_vector, d, c, mu, unc)
+        #if not np.isfinite(g_).all():
+        #    print(RuntimeWarning('a gradient component is NaN!'))
+        g += g_
     return g
 
 
 grad_log_prior = grad(log_prior)
 
 
-#@jit
+@jit
 def grad_log_prob(theta, types):
     return grad_log_prior(theta) + grad_log_likelihood(theta, types)
 
-
-# TODO: compute components of the gradient separately and then sum them..
-
-
-
 if __name__ == '__main__':
     from time import time
+
+    for i in range(len(dummy_types)):
+        assert(len(dummy_types[i]) == len(charges[i]))
 
     print('trying to compute just a single grad_log_likelihood component first...')
     t0 = time()
@@ -174,6 +190,14 @@ if __name__ == '__main__':
     print('and again, trying to compute just that single grad_log_likelihood component...')
     t0 = time()
     i = 0
+    d, c, mu, unc = distance_matrices[i], charges[i], expt_means[i], expt_uncs[i]
+    _ = grad_log_likelihood_component(dummy_theta, dummy_types[i], d, c, mu, unc)
+    t1 = time()
+    print('...that took {:.4}s'.format(t1 - t0))
+
+    print('now trying to compute a different single grad_log_likelihood component...')
+    t0 = time()
+    i = 2
     d, c, mu, unc = distance_matrices[i], charges[i], expt_means[i], expt_uncs[i]
     _ = grad_log_likelihood_component(dummy_theta, dummy_types[i], d, c, mu, unc)
     t1 = time()
@@ -219,6 +243,4 @@ if __name__ == '__main__':
     _ = f(dummy_theta)
     t1 = time()
     print('...that took {:.4}s'.format(t1 - t0))
-
-
 
