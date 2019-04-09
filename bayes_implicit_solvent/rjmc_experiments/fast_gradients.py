@@ -119,19 +119,14 @@ def get_predictions(theta, types):
 def log_likelihood_of_predictions_gaussian(predictions):
     return np.sum(norm_logpdf(x=predictions, mu=expt_means, sigma=expt_uncs))
 
-def predict_component(theta, type_vector, distance_matrices, charges):
-    N = int(len(theta) / 2)
-    radii_, scaling_factors_ = theta[:N], theta[N:]
-
-    radii = radii_[type_vector]
-    scaling_factors = scaling_factors_[type_vector]
+def predict_component(radii, scaling_factors, distance_matrices, charges):
     prediction = predict_solvation_free_energy_jax(radii, scaling_factors, distance_matrices, charges)
     return prediction
 
 
 @jit
-def log_likelihood_component(theta, type_vector, distance_matrices, charges, expt_mean, expt_unc):
-    prediction = predict_component(theta, type_vector, distance_matrices, charges)
+def log_likelihood_component(radii, scaling_factors, distance_matrices, charges, expt_mean, expt_unc):
+    prediction = predict_component(radii, scaling_factors, distance_matrices, charges)
     return norm_logpdf(x=prediction, mu=expt_mean, sigma=expt_unc)
 
 from scipy.stats import t as student_t
@@ -158,8 +153,13 @@ def grad_log_likelihood(theta, types):
     for i in range(len(types)):
         d, c, mu, unc = distance_matrices[i], charges[i], expt_means[i], expt_uncs[i]
         type_vector = types[i]
+        N = int(len(theta) / 2)
+        radii_, scaling_factors_ = theta[:N], theta[N:]
+
+        radii = radii_[type_vector]
+        scaling_factors = scaling_factors_[type_vector]
         # assert(len(type_vector) == len(c))
-        g_ = grad_log_likelihood_component(theta, type_vector, d, c, mu, unc)
+        g_ = grad_log_likelihood_component(radii, scaling_factors, d, c, mu, unc)
         #if not np.isfinite(g_).all():
         #    print(RuntimeWarning('a gradient component is NaN!'))
         g += g_
@@ -174,6 +174,11 @@ def grad_log_prob(theta, types):
     return grad_log_prior(theta) + grad_log_likelihood(theta, types)
 
 if __name__ == '__main__':
+
+    N = int(len(dummy_theta) / 2)
+    radii_, scaling_factors_ = dummy_theta[:N], dummy_theta[N:]
+
+
     from time import time
 
     for i in range(len(dummy_types)):
@@ -183,7 +188,9 @@ if __name__ == '__main__':
     t0 = time()
     i = 0
     d, c, mu, unc = distance_matrices[i], charges[i], expt_means[i], expt_uncs[i]
-    _ = grad_log_likelihood_component(dummy_theta, dummy_types[i], d, c, mu, unc)
+    radii = radii_[dummy_types[i]]
+    scaling_factors = scaling_factors_[dummy_types[i]]
+    _ = grad_log_likelihood_component(radii, scaling_factors, d, c, mu, unc)
     t1 = time()
     print('...that took {:.4}s'.format(t1 - t0))
 
@@ -191,7 +198,9 @@ if __name__ == '__main__':
     t0 = time()
     i = 0
     d, c, mu, unc = distance_matrices[i], charges[i], expt_means[i], expt_uncs[i]
-    _ = grad_log_likelihood_component(dummy_theta, dummy_types[i], d, c, mu, unc)
+    radii = radii_[dummy_types[i]]
+    scaling_factors = scaling_factors_[dummy_types[i]]
+    _ = grad_log_likelihood_component(radii, scaling_factors, d, c, mu, unc)
     t1 = time()
     print('...that took {:.4}s'.format(t1 - t0))
 
@@ -199,7 +208,9 @@ if __name__ == '__main__':
     t0 = time()
     i = 2
     d, c, mu, unc = distance_matrices[i], charges[i], expt_means[i], expt_uncs[i]
-    _ = grad_log_likelihood_component(dummy_theta, dummy_types[i], d, c, mu, unc)
+    radii = radii_[dummy_types[i]]
+    scaling_factors = scaling_factors_[dummy_types[i]]
+    _ = grad_log_likelihood_component(radii, scaling_factors, d, c, mu, unc)
     t1 = time()
     print('...that took {:.4}s'.format(t1 - t0))
 
