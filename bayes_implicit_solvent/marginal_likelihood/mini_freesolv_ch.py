@@ -119,7 +119,7 @@ from glob import glob
 from pkg_resources import resource_filename
 
 ll = 'student-t'
-n_conf = 25
+n_conf = 5
 
 path_to_vacuum_samples = resource_filename('bayes_implicit_solvent',
                                            'vacuum_samples/vacuum_samples_*.npy')
