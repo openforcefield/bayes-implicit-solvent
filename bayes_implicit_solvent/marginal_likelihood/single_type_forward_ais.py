@@ -10,9 +10,9 @@ from bayes_implicit_solvent.solvation_free_energy import kj_mol_to_kT, one_sided
 dataset = "mini"
 
 if dataset == "mini":
-    from bayes_implicit_solvent.marginal_likelihood.mini_freesolv_ch import mols
+    from bayes_implicit_solvent.marginal_likelihood.mini_freesolv_ch import mols, ll, n_conf
 elif dataset == "tiny":
-    from bayes_implicit_solvent.marginal_likelihood.tiny_freesolv_ch import mols
+    from bayes_implicit_solvent.marginal_likelihood.tiny_freesolv_ch import mols, ll, n_conf
 else:
     raise(RuntimeError)
 
@@ -59,11 +59,18 @@ def log_prior(theta):
         return - np.inf
     return np.sum(norm.logpdf(theta, loc=prior_location))
 
-
-def log_likelihood_of_predictions(predictions):
-    return np.sum(student_t.logpdf(predictions, loc=expt_means,
+if ll == 'student-t':
+    def log_likelihood_of_predictions(predictions):
+        return np.sum(student_t.logpdf(predictions, loc=expt_means,
                                    scale=expt_uncs,
                                    df=7))
+elif ll == 'gaussian':
+    def log_likelihood_of_predictions(predictions):
+        return np.sum(norm.logpdf(predictions, loc=expt_means,
+                                   scale=expt_uncs))
+
+else:
+    raise(RuntimeError)
 
 
 def log_likelihood(theta):
@@ -104,7 +111,7 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
     N_trajectories = 1000
-    N_annealing_steps = 100
+    N_annealing_steps = 10000
 
     trajectories = []
     log_weight_trajs = []
@@ -126,19 +133,17 @@ if __name__ == "__main__":
             log_weights.append(log_weights[t - 1] + (log_pdf_t - log_pdf_tminus1))
 
             log_prob_fun = lambda theta: annealed_log_posterior(theta, betas[t])
-            mh_traj, _, _ = random_walk_mh(traj[-1], log_prob_fun, n_steps=50, stepsize=0.015, progress_bar=False)
+            mh_traj, _, accept_prob = random_walk_mh(traj[-1], log_prob_fun, n_steps=5, stepsize=0.015, progress_bar=False)
 
             traj.append(mh_traj[-1])
 
-            trange.set_postfix(running_log_Z_estimate=log_weights[-1])
+            trange.set_postfix(running_log_Z_estimate=log_weights[-1], accept_prob=accept_prob)
 
         trajectories.append(np.array(traj))
         log_weight_trajs.append(np.array(log_weights))
 
         import numpy as np
-
-        np.savez('single_type_forward_ais_optimized_protocol_longer_{}.npz'.format(dataset),
+        np.savez('single_type_forward_ais_long_protocol_{}.npz'.format(dataset),
                  trajectories=trajectories,
-                 log_weight_trajectories=log_weight_trajs,
-                 notes="""assumes incorrectly that initial distribution is normalized!"""
+                 log_weight_trajectories=log_weight_trajs
                  )
