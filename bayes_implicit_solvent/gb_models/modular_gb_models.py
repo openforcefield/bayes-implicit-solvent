@@ -20,6 +20,14 @@ def step(x):
 from autograd import numpy as np
 
 
+def effective_radii_OBC_components(distance_matrix, radii, scales,
+                                  offset=0.009,
+                                  psi_coefficient=0.8,
+                                  psi2_coefficient=0,
+                                  psi3_coefficient=2.909125,
+                                  ):
+    pass
+
 def compute_effective_radii_OBC(distance_matrix, radii, scales,
                                 offset=0.009,
                                 psi_coefficient=0.8,
@@ -45,7 +53,8 @@ def compute_effective_radii_OBC(distance_matrix, radii, scales,
     # okay, next compute born radii
     offset_radius = radii - offset
     psi = I * offset_radius
-
+    # TODO: Why f(x, theta) = tanh(theta[0] * x + theta[1] * x**2 + theta[2] * x**3) ?
+    # Alternate functional form here?
     psi_term = (psi_coefficient * psi) + (psi2_coefficient * psi ** 2) + (psi3_coefficient * psi ** 3)
 
     effective_radii = 1 / (1 / offset_radius - np.tanh(psi_term) / radii)
@@ -90,7 +99,7 @@ def cha_scaling_correction_components(
     return influences, scales
 
 
-def cha_gb_no_threshold(distance_matrix, radii, scales, taus, charges,
+def cha_gb_no_threshold(distance_matrix, radii, scales, taus, charges, sasa_offsets=0.14,
                         offset=0.009, screening=138.935484, surface_tension=28.3919551,
                         solvent_dielectric=78.5, solute_dielectric=1.0,
                         psi_coefficient=0.8,
@@ -120,7 +129,8 @@ def cha_gb_no_threshold(distance_matrix, radii, scales, taus, charges,
     E = 0
 
     # surface area term
-    E += np.sum(surface_tension * (radii + 0.14) ** 2 * (radii / effective_radii) ** 6)
+    # TODO: Replace 0.14 with either a per-particle parameter, or something to do with the CHA effective radii?
+    E += np.sum(surface_tension * (radii + sasa_offsets) ** 2 * (radii / effective_radii) ** 6)
 
     # Delta G_pol, single particle terms: actually, can this be removed?
     E += np.sum(-0.5 * screening * (1 / solute_dielectric - 1 / solvent_dielectric) * charges ** 2 / effective_radii)
