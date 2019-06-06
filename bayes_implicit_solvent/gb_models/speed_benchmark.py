@@ -239,6 +239,48 @@ _ = grad(jax_vmap_vectorized_loss)(theta)
 t1 = time()
 timings['Jax vmap vectorized parameter gradients'] = (t1 - t0) / n_snapshots
 
+
+from bayes_implicit_solvent.solvation_free_energy import one_sided_exp, kj_mol_to_kT
+
+from jax.scipy.misc import logsumexp
+from scipy.stats import t as student_t
+
+@jit
+def jax_vmap_vectorized_loss(theta):
+    radii, scales = unpack(theta)
+
+    @jit
+    def compute_U_diff_component(distance_matrix):
+        return np.abs(compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges,
+                                   offset, screening, surface_tension,
+                                   solvent_dielectric, solute_dielectric))
+    W_F = vmap(compute_U_diff_component)(distance_matrices)
+    w_F = kj_mol_to_kT * W_F
+    DeltaF = - (logsumexp(- w_F) - np.log(len(w_F)))
+    #DeltaF = one_sided_exp(w_F) # this causes grad (but not energies) to hang, when asked to JIT!
+    target_DeltaF = -5.0
+
+    #return - student_t.logpdf(DeltaF - target_DeltaF, df=7, scale=1.0) # causes to crash Exception: Tracer can't be used with raw numpy functions.
+    return (DeltaF - target_DeltaF)**2 # fine
+
+
+_ = jax_vmap_vectorized_loss(theta)
+
+t0 = time()
+_ = jax_vmap_vectorized_loss(theta)
+t1 = time()
+timings['Jax vmap vectorized energies'] = (t1 - t0) / n_snapshots
+
+
+_ = grad(jax_vmap_vectorized_loss)(theta)
+
+t0 = time()
+_ = grad(jax_vmap_vectorized_loss)(theta)
+t1 = time()
+timings['Jax vmap vectorized parameter gradients w.r.t. free energy objective'] = (t1 - t0) / n_snapshots
+
+
+
 print('OpenMM reference timing: {:.3f}ms per snapshot\n'.format(reference_timing * 1000))
 for key in timings:
     print('{}: {:.3f}ms ({:.3f}x OpenMM reference)'.format(key, timings[key] * 1000, timings[key] / reference_timing))
