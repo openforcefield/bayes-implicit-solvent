@@ -1,151 +1,149 @@
-from bayes_implicit_solvent.typers import GBTypingTree, AtomSpecificationProposal
-specifiers = ['X1', 'X2', 'X3', 'X4']
-atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
-typer = GBTypingTree(atom_specification_proposal)
-
-# hydrogen types
-typer.add_child('[#1]', '*')
-typer.add_child('[#1]-[#6X4]', '[#1]')
-#typer.add_child('[#1]-[#6X4]-[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X4]')
-#typer.add_child('[#1]-[#6X4](-[#7,#8,#9,#16,#17,#35])(-[#7,#8,#9,#16,#17,#35])-[#7,#8,#9,#16,#17,#35]',
-#                '[#1]-[#6X4]-[#7,#8,#9,#16,#17,#35]')
-#typer.add_child('[#1]-[#6X4]~[*+1,*+2]', '[#1]-[#6X4]')
-#typer.add_child('[#1]-[#6X3]', '*')
-#typer.add_child('[#1]-[#6X3]~[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X3]')
-#typer.add_child('[#1]-[#6X3](~[#7,#8,#9,#16,#17,#35])~[#7,#8,#9,#16,#17,#35]', '[#1]-[#6X3]~[#7,#8,#9,#16,#17,#35]')
-typer.add_child('[#1]-[#6X2]', '[#1]')
-typer.add_child('[#1]-[#7]', '[#1]')
-typer.add_child('[#1]-[#8]', '[#1]')
-typer.add_child('[#1]-[#16]', '[#1]')
-
-# carbon types
-typer.add_child('[#6]', '*')
-typer.add_child('[#6X2]', '[#6]')
-typer.add_child('[#6X4]', '[#6]')
-
-# nitrogen type
-typer.add_child('[#7]', '*')
-
-# oxygen types
-typer.add_child('[#8]', '*')
-typer.add_child('[#8X2H0+0]', '[#8]')
-typer.add_child('[#8X2H1+0]', '[#8]')
-
-# fluorine types
-typer.add_child('[#9]', '*')
-
-# phosphorus type
-typer.add_child('[#15]', '*')
-
-# sulfur type
-typer.add_child('[#16]', '*')
-
-# chlorine type
-typer.add_child('[#17]', '*')
-
-# bromine type
-typer.add_child('[#35]', '*')
-
-# iodine type
-typer.add_child('[#53]', '*')
-
-print(typer)
-
-from bayes_implicit_solvent.prior_checking import check_no_empty_types
-
-check_no_empty_types(typer)
-
 import os.path
 
-import mdtraj as md
 import numpy as np
+from bayes_implicit_solvent.molecule import Molecule
+from simtk import unit
+
+
+def sample_path_to_unitted_snapshots(path_to_npy_samples):
+    xyz = np.load(path_to_npy_samples)
+    traj = [snapshot * unit.nanometer for snapshot in xyz]
+    return traj
+
+
+from glob import glob
 from pkg_resources import resource_filename
 
-from bayes_implicit_solvent.molecule import Molecule
-from bayes_implicit_solvent.samplers import sparse_mh
-from bayes_implicit_solvent.solvation_free_energy import smiles_list
-from bayes_implicit_solvent.utils import mdtraj_to_list_of_unitted_snapshots
+data_path = resource_filename('bayes_implicit_solvent',
+                              'data')
+ll = 'gaussian'  # or 'student-t'
+n_conf = 25
 
-data_path = '../data/'
+path_to_vacuum_samples = resource_filename('bayes_implicit_solvent',
+                                           'vacuum_samples/vacuum_samples_*.npy')
+paths_to_samples = glob(path_to_vacuum_samples)
+print('number of molecules being considered: {}'.format(len(paths_to_samples)))
 
-np.random.seed(0)
 
-inds = np.arange(len(smiles_list))
-np.random.shuffle(inds)
-inds = inds[:int(len(smiles_list) / 2)]
+def extract_cid_key(path):
+    i = path.find('mobley_')
+    j = path.find('.npy')
+    return path[i:j]
 
-smiles_subset = [smiles_list[i] for i in inds]
 
-n_configuration_samples = 10
+cids = list(map(extract_cid_key, paths_to_samples))
 
 mols = []
 
-for smiles in smiles_subset:
-    mol = Molecule(smiles, vacuum_samples=[])
-    path_to_vacuum_samples = resource_filename('bayes_implicit_solvent',
-                                               'vacuum_samples/vacuum_samples_{}.h5'.format(
-                                                   mol.mol_index_in_smiles_list))
-    vacuum_traj = md.load(path_to_vacuum_samples)
-    thinning = int(len(vacuum_traj) / n_configuration_samples)
-    mol.vacuum_traj = mdtraj_to_list_of_unitted_snapshots(vacuum_traj[::thinning])
-    print('thinned vacuum_traj from {} to {}'.format(len(vacuum_traj), len(mol.vacuum_traj)))
+n_configuration_samples = n_conf  # TODO: Since this is cheaper, can probably modify this a bit...
+
+name = 'n_config={}_{}_ll'.format(n_configuration_samples, ll)
+
+from bayes_implicit_solvent.freesolv import cid_to_smiles
+
+for path in paths_to_samples:
+    cid = extract_cid_key(path)
+    smiles = cid_to_smiles[cid]
+    vacuum_samples = sample_path_to_unitted_snapshots(path)
+    thinning = int(len(vacuum_samples) / n_configuration_samples)
+    mol = Molecule(smiles, vacuum_samples=vacuum_samples[::thinning], ll=ll)
     mols.append(mol)
 
-type_assignments = typer.apply_to_molecule_list([mol.mol for mol in mols])
-radii0 = np.ones(typer.number_of_nodes) * 0.12
-scales0 = np.ones(typer.number_of_nodes) * 0.85
+# 2. Define a likelihood function, including "type-assignment"
 
-def pack(radii, scales):
-    n = len(radii)
-    theta = np.zeros(2 * n)
-    theta[:n] = radii
-    theta[n:2 * n] = scales
-    return theta
+from bayes_implicit_solvent.gb_models.smirnoff99frosst_nb_types import typer as initial_model
 
-theta0 = pack(radii0, scales0)
+type_slices = [initial_model.apply_to_molecule(mol.mol) for mol in mols]
 
-def unpack(theta):
-    n = int((len(theta)) / 2)
-    radii, scales = theta[:n], theta[n:2 * n]
-    return radii, scales
+
+def construct_arrays(theta):
+    n = int(len(theta) / 2)
+    radii, scales = theta[:n], theta[n:]
+
+    parameterized_list = []
+    for i in range(len(mols)):
+        parameterized_list.append((radii[type_slices[i]], scales[type_slices[i]]))
+    return parameterized_list
+
+
+from bayes_implicit_solvent.constants import min_r, max_r, min_scale, max_scale
+from scipy.stats import norm
+
+expected_radius = 0.15
+expected_scale = 0.8
+
+radius_sigma = 1.0
+scale_sigma = 1.0
+
+
+def log_prior_on_radii(radii):
+    return sum(norm.logpdf(radii, loc=expected_radius, scale=radius_sigma))
+
+
+def log_prior_on_scales(scales):
+    return sum(norm.logpdf(scales, loc=expected_scale, scale=scale_sigma))
+
+
+def log_prior(theta):
+    n = int(len(theta) / 2)
+    radii, scales = theta[:n], theta[n:]
+
+    if (min(radii) < min_r) or (max(radii) > max_r) or (min(scales) < min_scale) or (max(scales) > max_scale):
+        return - np.inf
+    else:
+        return log_prior_on_radii(radii) + log_prior_on_scales(scales)
+
 
 def log_prob(theta):
-    """Fixed typing scheme, only radii"""
-    radii, scales, = unpack(theta)
-    # TODO: Update example to allow variable scale-factors also
-    return sum([mols[i].log_prob(radii[type_assignments[i]], scales[type_assignments[i]]) for i in range(len(mols))])
+    L = log_prior(theta)
+    if not (L > -np.inf):
+        return L
+    else:
+        parameterized_list = construct_arrays(theta)
+        for i, mol in enumerate(mols):
+            radii, scale_factors = parameterized_list[i]
+            L += mol.log_prob(radii, scale_factors)
+    return L
 
 
-from scipy.optimize import minimize
+if __name__ == '__main__':
+    n_types = initial_model.number_of_nodes
+    print('n_types: {}'.format(n_types))
 
-traj = []
-def loss(theta):
-    l = -log_prob(theta)
-    traj.append((theta, l))
-    return l
+    # initial_radii = np.array(initial_model.get_radii())
+    # initial_scales = np.array(initial_model.get_scale_factors())
+    # theta0 = np.hstack((initial_radii, initial_scales))
 
-min_theta, max_theta = 0.01, 2.0
-bounds = [(min_theta, max_theta)] * len(theta0)
+    theta0 = np.array(list(map(float, '0.18544694 0.13589401 0.12459711 0.15561623 0.13462232 0.1597141 0.16367472 0.16122833 0.18471579 0.12737076 0.15901924 0.13017523 0.14424222 0.15360279 0.14665745 0.14714415 0.13652498 0.13477897 0.15213938 0.14851908 0.16365621 0.12496874 0.11879516 0.13049311 0.14916848 0.14840174 0.86159337 0.75604993 0.64205759 0.90736801 0.77463168 0.82812836 0.86548253 0.9858935  0.83913711 0.95611967 0.80626157 0.79300531 0.9533121  0.8106477  0.67812537 0.76018205 0.80109448 0.83501951 0.787929   0.68157676 0.91278139 0.78743348 0.94062257 0.85178941 0.77598672 0.79416221'.split())))
 
+    print('initial theta', theta0)
+    initial_log_prob = log_prob(theta0)
 
-result = minimize(loss, theta0,
-              #jac=grad_loss,
-              method='L-BFGS-B',
-              #method='Newton-CG',
-              #hessp=hessian_vector_product(loss),
-              #callback=callback,
-              bounds=bounds,
-              options={'disp': True,
-                       'maxiter': 100})
+    print('minimizing...')
+    from scipy.optimize import minimize
 
-theta1 = result.x
-minimized_theta_fname = os.path.join(data_path,
-                                         'smirnoff-types_L-BFGS_freesolv.npy')
-np.save(minimized_theta_fname, theta1)
+    bounds = [(min_r, max_r)] * n_types + [(min_scale, max_scale)] * n_types
+
+    traj = []
+    loss_traj = []
 
 
-traj, log_probs, acceptance_fraction = sparse_mh(theta1, log_prob, n_steps=10000, dim_to_perturb=3, stepsize=0.01)
+    def loss(theta):
+        L = - log_prob(theta)
+        print('loss at {} = {}'.format(theta, L))
+        traj.append(theta)
+        loss_traj.append(L)
+        return L
 
-np.savez(os.path.join(data_path,
-                     'smirnoff_type_radii_samples_half_of_freesolv_n_config={}.npy'.format(
-                         n_configuration_samples)), traj=traj, log_probs=log_probs)
+
+    print('starting minimization')
+    result = minimize(loss, theta0,
+                      method='Nelder-Mead',
+                      bounds=bounds,
+                      options={'disp': True,
+                               'maxiter': 1000,
+                               })
+
+    traj_fname = os.path.join(data_path, 'smirnoff_nb_types_initialized_nelder-mead_freesolv_{}_traj.npz'.format(
+        name))
+    np.savez(traj_fname, traj=traj, loss_traj=loss_traj)
