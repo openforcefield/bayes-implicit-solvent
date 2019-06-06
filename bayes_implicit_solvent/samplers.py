@@ -186,7 +186,7 @@ def langevin(x0, v0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01
 
 
 def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01,
-         adapt_stepsize=False, adaptation_factor=0.5, adaptation_interval=50):
+         adapt_stepsize=False, adaptation_factor=0.5, adaptation_interval=50, progress_bar=True):
     """Metropolis-Adjusted Langevin Algorithm.
 
     Parameters
@@ -242,7 +242,9 @@ def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01,
     def proposal_log_probability(proposal, initial, grad_initial, stepsize):
         return (-1 / (4 * stepsize)) * np.sum((proposal - initial - stepsize * grad_initial) ** 2)
 
-    trange = tqdm(range(n_steps))
+    trange = range(n_steps)
+    if progress_bar:
+        trange = tqdm(trange)
     for t in trange:
         sigma = np.sqrt(2 * stepsize)
         proposal = traj[-1] + (stepsize * grads[-1]) + (sigma * np.random.randn(*traj[-1].shape))
@@ -269,11 +271,11 @@ def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01,
             traj.append(traj[-1])
             log_probs.append(log_probs[-1])
             grads.append(grads[-1])
-
-        trange.set_postfix({
-            'log_prob': log_probs[-1],
-            'average_accept_prob': np.mean(acceptance_probs),
-        })
+        if progress_bar:
+            trange.set_postfix({
+                'log_prob': log_probs[-1],
+                'average_accept_prob': np.mean(acceptance_probs),
+            })
 
         if (t > 1) and (t % adaptation_interval == 0):
             recent_acceptance_probs = acceptance_probs[-adaptation_interval:]
@@ -299,7 +301,7 @@ def MALA(x0, log_prob_fun, grad_log_prob_fun, n_steps=100, stepsize=0.01,
     return np.array(traj), np.array(log_probs), np.array(grads), np.array(acceptance_probs), np.array(stepsizes)
 
 
-def tree_rjmc(initial_tree, log_prob_func, smirks_elaboration_proposal, n_iterations=1000, fraction_cross_model_proposals=0.25):
+def tree_rjmc(initial_tree, log_prob_func, smirks_elaboration_proposal, n_iterations=1000, fraction_cross_model_proposals=0.25, progress_bar=True):
     """RJMC with create/delete proposals
 
     At each iteration, flip a biased coin to decide whether to attempt a within-model move
@@ -318,13 +320,17 @@ def tree_rjmc(initial_tree, log_prob_func, smirks_elaboration_proposal, n_iterat
 
     Returns
     -------
-    result_dictionary (keys: "traj", "log_probs", "log_acceptance_probabilities")
+    result_dictionary (keys: "traj", "log_probs", "log_acceptance_probabilities", "proposal_move_dimensions")
     """
     trees = [initial_tree]
     log_probs = [log_prob_func(trees[-1])]
     log_acceptance_probabilities = []
+    proposal_move_dimensions = []
 
-    trange = tqdm(range(n_iterations))
+    if progress_bar:
+        trange = tqdm(range(n_iterations))
+    else:
+        trange = range(n_iterations)
     for _ in trange:
 
         # try either a within-model proposal or cross-model proposal
@@ -334,12 +340,16 @@ def tree_rjmc(initial_tree, log_prob_func, smirks_elaboration_proposal, n_iterat
             # TODO: Replace this with like 100 steps of RWMH
             proposal_dict = trees[-1].sample_perturbation_proposal()
 
+        proposal_move_dimensions.append(proposal_dict['proposal'].number_of_nodes)
+
         # compute p(x') and p(x')/p(x)
         log_prob_proposal = log_prob_func(proposal_dict['proposal'])
         log_p_new_over_old = log_prob_proposal - log_probs[-1]
 
         # compute acceptance probability, including proposal asymmetry p(x'|x)/p(x|x')
         log_acceptance_probability = min(0.0, log_p_new_over_old - proposal_dict['log_prob_forward_over_reverse'])
+        if not np.isfinite(log_acceptance_probability):
+            log_acceptance_probability = - np.inf  # if it's a nan, make sure the acceptance probability is 0
         acceptance_probability = np.exp(log_acceptance_probability)
 
         # accept or reject
@@ -352,12 +362,15 @@ def tree_rjmc(initial_tree, log_prob_func, smirks_elaboration_proposal, n_iterat
 
         # update trace and progress bar
         log_acceptance_probabilities.append(log_acceptance_probability)
-        trange.set_postfix({'avg. accept. prob.': np.mean(np.exp(log_acceptance_probabilities)),
-                            'log posterior': log_probs[-1],
-                            '# GB types': trees[-1].number_of_nodes,
-                            })
+        if progress_bar:
+            trange.set_postfix({'avg. accept. prob.': np.mean(np.exp(log_acceptance_probabilities)),
+                                'log posterior': log_probs[-1],
+                                '# GB types': trees[-1].number_of_nodes,
+                                })
 
     return {'traj': trees,
             'log_probs': np.array(log_probs),
-            'log_acceptance_probabilities': np.array(log_acceptance_probabilities)
+            'log_acceptance_probabilities': np.array(log_acceptance_probabilities),
+            'proposal_move_dimensions': np.array(proposal_move_dimensions),
             }
+
