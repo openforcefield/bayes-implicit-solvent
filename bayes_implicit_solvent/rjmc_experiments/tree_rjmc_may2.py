@@ -87,30 +87,27 @@ from bayes_implicit_solvent.typers import AtomSpecificationProposal
 
 np.random.seed(0)
 
-from bayes_implicit_solvent.typers import GBTypingTree
-initial_tree = GBTypingTree(max_nodes=20)
+from bayes_implicit_solvent.gb_models.obc2_parameters import mbondi_model
+
+initial_tree = mbondi_model
+initial_tree.remove_node('[#14]') # otherwise everything is -inf, because this type will be empty
 initial_tree.proposal_sigmas['radius'] = 1e-2 * RADIUS_UNIT
 initial_tree.proposal_sigmas['scale_factor'] = 1e-2
 
-initial_tree.add_child('[*]', '*') # TODO: fix this stupidity, by changing all references to '*' as root to '[*]' as root...
-initial_tree.un_delete_able_types.add('[*]')
-#initial_tree.is_decorate_able = lambda node: True
+# add one more parameter per element appearing in FreeSolv but not specified in obc2 parameter set to initial tree
+for i in [17, 35, 53]:
+    smirks = '[#{}]'.format(i)
+    initial_tree.add_child(smirks, '*')
+    initial_tree.un_delete_able_types.add(smirks)
 
-atomic_numbers = [1,6,7,8,9,15,16,17,35,53]
+from bayes_implicit_solvent.constants import RADIUS_UNIT
 
-atomic_number_specifiers = ['#{}'.format(n) for n in atomic_numbers]
 ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'a', 'A']
 charge_specifiers = ['-1', '+0', '+1', '+2']
 hydrogen_count_specifiers = ['H0', 'H1', 'H2', 'H3', 'H4']
-connectivity_specifiers = ['X1', 'X2', 'X3', 'X4']
 
-#specifiers = connectivity_specifiers
-specifiers = atomic_number_specifiers + ring_specifiers + charge_specifiers + hydrogen_count_specifiers + connectivity_specifiers
-#primitives = list(map(lambda s: '[{}]'.format(s), specifiers))
+specifiers = ring_specifiers + charge_specifiers + hydrogen_count_specifiers + ['X1', 'X2', 'X3', 'X4']
 
-from bayes_implicit_solvent.typers import DiscreteProposal
-
-#smirks_elaboration_proposal = RootSpecificationProposal(primitives)
 atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
 smirks_elaboration_proposal = atom_specification_proposal
 
@@ -202,7 +199,7 @@ within_model_trajs = []
 from bayes_implicit_solvent.samplers import random_walk_mh
 
 def save():
-    name = 'elaborate_tree_rjmc_march31_run_n_compounds={}_n_iter={}_{}_ll_small_proposals'.format(len(mols),
+    name = 'elaborate_tree_rjmc_may2_run_n_compounds={}_n_iter={}_{}_ll_small_proposals'.format(len(mols),
                                                                                                    n_iterations, ll)
     np.savez(name + '.npz',
              n_types_traj=n_types_traj,

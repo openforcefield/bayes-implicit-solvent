@@ -15,8 +15,8 @@ from bayes_implicit_solvent.gb_models.obc2_parameters import mbondi_model
 
 initial_tree = mbondi_model
 initial_tree.remove_node('[#14]') # otherwise everything is -inf, because this type will be empty
-initial_tree.proposal_sigmas['radius'] = 1e-2 * RADIUS_UNIT
-initial_tree.proposal_sigmas['scale_factor'] = 1e-2
+initial_tree.proposal_sigmas['radius'] = 5 * 1e-2 * RADIUS_UNIT
+initial_tree.proposal_sigmas['scale_factor'] = 5 * 1e-2
 
 # add one more parameter per element appearing in FreeSolv but not specified in obc2 parameter set to initial tree
 for i in [17, 35, 53]:
@@ -24,54 +24,14 @@ for i in [17, 35, 53]:
     initial_tree.add_child(smirks, '*')
     initial_tree.un_delete_able_types.add(smirks)
 
-#specifiers = ['X1', 'X2', 'X3', 'X4', 'a', 'A']
-#atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
-#smirks_elaboration_proposal = atom_specification_proposal
-
-
-
-all_bond_specifiers = ['@', '-', '#', '=', ':']
-from bayes_implicit_solvent.smarts import atomic_number_dict
-
-all_bondable_types = list(atomic_number_dict.keys())
-
-# atomic_decorators list:
-ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'a', 'A']
-charge_specifiers = ['-1', '+0', '+1', '+2']
-hydrogen_count_specifiers = ['H0', 'H1', 'H2', 'H3', 'H4']
-connectivity_specifiers = ['X1', 'X2', 'X3', 'X4']
-
-all_specifier_lists = [
-    ring_specifiers,
-    charge_specifiers,
-    hydrogen_count_specifiers,
-    connectivity_specifiers,
-]
-
-from itertools import chain
-
-
-all_atomic_specifiers = list(chain(*all_specifier_lists))
-#all_bondable_types += ['[{}]'.format(s) for s in all_atomic_specifiers]
-#all_decorators = all_bondable_types + all_atomic_specifiers + all_bond_specifiers
-
-
-from bayes_implicit_solvent.typers import BondProposal, BondSpecificationProposal, AtomSpecificationProposal, SMIRKSElaborationProposal
-#bond_proposal = BondProposal(bondable_types=all_bondable_types)
-atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=all_atomic_specifiers)
-#bond_specification_proposal = BondSpecificationProposal(bond_specifiers=all_bond_specifiers)
-
-smirks_elaborators = [
-    #bond_proposal,
-    atom_specification_proposal,
-    #bond_specification_proposal,
-]
-smirks_elaboration_proposal = SMIRKSElaborationProposal(smirks_elaborators=smirks_elaborators)
+specifiers = ['X1', 'X2', 'X3', 'X4', 'a', 'A', '-1', '+0', '+1', '+2']
+atom_specification_proposal = AtomSpecificationProposal(atomic_specifiers=specifiers)
+smirks_elaboration_proposal = atom_specification_proposal
 
 print('initial tree:')
 print(initial_tree)
 
-n_configuration_samples = 5
+n_configuration_samples = 25
 
 import os
 
@@ -84,10 +44,6 @@ with open(smiles_subset_fname, 'w') as f:
 from bayes_implicit_solvent.prior_checking import check_no_empty_types
 
 error_y_trees = []
-
-for mol in mols:
-    thinning = int(len(mol.vacuum_traj) / n_configuration_samples)
-    mol.vacuum_traj = mol.vacuum_traj[::thinning]
 
 
 def log_prob(tree):
@@ -120,13 +76,47 @@ def log_prob(tree):
 from bayes_implicit_solvent.samplers import tree_rjmc
 from pickle import dump
 
-n_iterations = 10000
+import itertools
+n_iterations_per_chunk = 1000
+n_chunks = 100
+n_iterations = n_chunks * n_iterations_per_chunk
+# run jax-based
 
-result = tree_rjmc(initial_tree, log_prob, smirks_elaboration_proposal, n_iterations=n_iterations,
-                   fraction_cross_model_proposals=0.1)
-with open('elaborate_tree_rjmc_run_n_compounds={}_n_iter={}_gaussian_ll.pkl'.format(len(mols), n_iterations),
-          'wb') as f:
-    dump(result, f)
+trajs = []
+log_prob_trajs = []
+log_acceptance_probabilities_trajs = []
+n_types_trajs = []
+proposal_dim_trajs = []
 
-with open('error_y_trees.pkl', 'wb') as f:
-    dump(error_y_trees, f)
+from tqdm import tqdm
+
+trange = tqdm(range(n_chunks))
+for chunk in trange:
+    result = tree_rjmc(initial_tree, log_prob, smirks_elaboration_proposal, n_iterations=n_iterations_per_chunk,
+                       fraction_cross_model_proposals=0.25)
+
+    trajs.append(result["traj"][1:])
+    initial_tree = trajs[-1][-1]
+    log_prob_trajs.append(result["log_probs"][1:])
+    log_acceptance_probabilities_trajs.append(result["log_acceptance_probabilities"])
+    n_types_trajs.append(np.array([tree.number_of_nodes for tree in result['traj']]))
+    proposal_dim_trajs.append(result['proposal_move_dimensions'])
+
+    traj = list(itertools.chain(*trajs))
+    log_probs = np.hstack(log_prob_trajs)
+    log_acceptance_probabilities = np.hstack(log_acceptance_probabilities_trajs)
+    n_types_traj = np.hstack(n_types_trajs)
+    proposal_dims = np.hstack(proposal_dim_trajs)
+
+
+    trange.set_postfix(max_n_types=max(n_types_traj), min_n_types=min(n_types_traj))
+
+    np.savez('elaborate_tree_rjmc3_run_n_compounds={}_n_iter={}_{}_ll.npz'.format(len(mols), n_iterations, ll),
+             n_types_traj=n_types_traj,
+             log_probs=log_probs,
+             log_accept_prob_traj=log_acceptance_probabilities,
+             proposal_dims=proposal_dims,
+             tree_strings=[str(tree) for tree in traj],
+             radii=[tree.get_radii() for tree in traj],
+             scales=[tree.get_scale_factors() for tree in traj],
+             )

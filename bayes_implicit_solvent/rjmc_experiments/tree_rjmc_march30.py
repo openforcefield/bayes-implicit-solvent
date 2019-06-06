@@ -144,8 +144,8 @@ smirks_elaboration_proposal = atom_specification_proposal
 print('initial tree:')
 print(initial_tree)
 
-#ll = 'student-t'
-ll = 'gaussian'
+ll = 'student-t'
+#ll = 'gaussian'
 
 name = 'tree_rjmc_n_config={}_{}_ll'.format(n_configuration_samples, ll)
 
