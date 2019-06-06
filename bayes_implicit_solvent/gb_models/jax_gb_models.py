@@ -4,19 +4,22 @@
 import jax.numpy as np
 from jax import grad, jit
 
-@jit
+#@jit
 def step(x):
     # return (x > 0)
     return 1.0 * (x >= 0)
 
-@jit
+#@jit
 def compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges,
                                   offset=0.009, screening=138.935484, surface_tension=28.3919551,
                                   solvent_dielectric=78.5, solute_dielectric=1.0,
                                   ):
     """Replacing for-loops with vectorized operations"""
     N = len(radii)
-    r = distance_matrix + np.eye(N) # so I don't have divide-by-zero nonsense
+    #print(type(distance_matrix))
+    eye = np.eye(N, dtype=distance_matrix.dtype)
+    #print(type(eye))
+    r = distance_matrix + eye # so I don't have divide-by-zero nonsense
     or1 = radii.reshape((N, 1)) - offset
     or2 = radii.reshape((1, N)) - offset
     sr2 = scales.reshape((1, N)) * or2
@@ -42,7 +45,7 @@ def compute_OBC_energy_vectorized(distance_matrix, radii, scales, charges,
     B = 1 / (1 / offset_radius - np.tanh(psi_term) / radii)
 
     # finally, compute the three energy terms
-    E = 0
+    E = 0.0
 
     # single particle
     E += np.sum(surface_tension * (radii + 0.14) ** 2 * (radii / B) ** 6)
