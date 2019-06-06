@@ -16,12 +16,12 @@ from bayes_implicit_solvent.freesolv import mol_top_sys_pos_list
 all_oe_mols = [entry[0] for entry in mol_top_sys_pos_list]
 
 
-from openforcefield.typing.engines.smirnoff.forcefield import _validateSMIRKS
+from openforcefield.typing.chemistry.environment import AtomChemicalEnvironment
 
 # TODO: Replace with minidrugbank or something
 
 def check_valid_smirks(smirks_string):
-    return _validateSMIRKS(smirks_string)
+    return AtomChemicalEnvironment.validate(smirks_string)
 
 def check_all_valid_smirks(typer):
     for smirks in typer.nodes:
@@ -49,9 +49,9 @@ def check_no_empty_types(typer):
     flat = np.hstack(assigned_types)
     N = typer.number_of_nodes
 
-    # check that no type is unused
+    # check that no type is unused, except the wildcard
     counts = np.bincount(flat, minlength=N)
-    if np.min(counts[1:]) == 0:  # TODO: revisit [1:] slice if we change how wildcard is handled
+    if (len(counts) > 1) and (np.min(counts[1:]) == 0):  # TODO: revisit [1:] slice if we change how wildcard is handled
         # print('empty types found!')
         # print([typer.ordered_nodes[i] for i in range(len(counts)) if counts[i] == 0])
         return -np.inf
