@@ -91,9 +91,10 @@ from jax.scipy.stats import norm
 radius_prior = 0.15
 scale_prior = 0.8
 
-N_types = 2
+N_types = 1
 from numpy import random
-dummy_types = [random.randint(0, N_types, mol.mol.NumAtoms()) for mol in mols]
+#dummy_types = [random.randint(0, N_types, mol.mol.NumAtoms()) for mol in mols]
+dummy_types = [np.zeros(mol.mol.NumAtoms(), dtype=int) for mol in mols]
 
 dummy_theta = np.hstack([np.ones(N_types) * radius_prior, np.ones(N_types) * scale_prior])
 
