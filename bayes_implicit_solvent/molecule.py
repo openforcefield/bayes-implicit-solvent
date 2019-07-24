@@ -157,7 +157,7 @@ class Molecule():
 
 
     def predict_solvation_free_energy_autograd(self, radii, scaling_factors):
-        W_F = np.array([compute_OBC_energy_vectorized(distance_matrix, radii, scaling_factors) for
+        W_F = np.array([compute_OBC_energy_vectorized(distance_matrix, radii, scaling_factors, self.charges) for
                     distance_matrix in
                     self.distance_matrices])
         w_F = W_F * kj_mol_to_kT
