@@ -57,6 +57,13 @@ def mdtraj_to_list_of_unitted_snapshots(traj):
     return [snapshot * unit.nanometer for snapshot in traj.xyz]
 
 
+def npy_sample_path_to_unitted_snapshots(path_to_npy_samples):
+    """Given a path to a .npy file containing xyz coordinates in units of nanometers,
+    create a list of (n_atoms, 3) snapshots with simtk.units attached"""
+    xyz = np.load(path_to_npy_samples)
+    traj = [snapshot * unit.nanometer for snapshot in xyz]
+    return traj
+
 def smarts_to_subsearch(smarts):
     """Creates an oechem.OESubsearch object from a SMARTS pattern"""
     qmol = oechem.OEQMol()
