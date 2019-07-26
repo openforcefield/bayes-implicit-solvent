@@ -7,12 +7,15 @@ from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_
     get_vacuum_samples, create_implicit_sim, beta
 from bayes_implicit_solvent.freesolv import db, smiles_list, mol_top_sys_pos_list
 
-
-import jax.numpy as jnp
+use_jax = False
+if use_jax:
+    import jax.numpy as jnp
+    import jax
+    from bayes_implicit_solvent.gb_models.jax_gb_models import compute_OBC_energy_vectorized as jax_compute_OBC_energy
 import autograd.numpy as np
 from bayes_implicit_solvent.gb_models.numpy_gb_models import compute_OBC_energy_vectorized
-from bayes_implicit_solvent.gb_models.jax_gb_models import compute_OBC_energy_vectorized as jax_compute_OBC_energy
-import jax
+
+
 from bayes_implicit_solvent.solvation_free_energy import kj_mol_to_kT, one_sided_exp
 
 from scipy.spatial.distance import pdist, squareform
