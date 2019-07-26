@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as onp
 from scipy.stats import t as student_t
 from simtk import unit
 
@@ -8,11 +8,11 @@ from bayes_implicit_solvent.solvation_free_energy import predict_solvation_free_
 from bayes_implicit_solvent.freesolv import db, smiles_list, mol_top_sys_pos_list
 
 
-import jax.numpy as np
+import jax.numpy as jnp
+import autograd.numpy as np
 from bayes_implicit_solvent.gb_models.numpy_gb_models import compute_OBC_energy_vectorized
 from bayes_implicit_solvent.gb_models.jax_gb_models import compute_OBC_energy_vectorized as jax_compute_OBC_energy
-
-from jax import grad, jit, vmap
+import jax
 from bayes_implicit_solvent.solvation_free_energy import kj_mol_to_kT, one_sided_exp
 
 from scipy.spatial.distance import pdist, squareform
@@ -25,6 +25,9 @@ class Molecule():
     def __init__(self, smiles, verbose=False, vacuum_samples=None,
                  n_samples=50, thinning=50000, ll='gaussian'):
         """Create an object that supports prediction of solvation free energy given radii and scaling factors
+
+        # TODO: remove ll
+        # TODO: add backend attribute
 
         Parameters
         ----------
@@ -75,6 +78,7 @@ class Molecule():
             uncertainty in experimental_value, converted from kcal.mol to unitless (in kT)
         implicit_sim : OpenMM Simulation
             same as vacuum_sim, but with a GBSAOBCForce added
+
         """
 
         assert (ll in {'gaussian', 'student-t'})
@@ -165,11 +169,11 @@ class Molecule():
 
     #@jit
     def predict_solvation_free_energy_jax(self, radii, scaling_factors):
-        @jit
+        @jax.jit
         def compute_component(distance_matrix):
             return jax_compute_OBC_energy(distance_matrix, radii, scaling_factors, self.charges)
 
-        W_F = vmap(compute_component)(self.distance_matrices)
+        W_F = jax.vmap(compute_component)(self.distance_matrices)
 
         w_F = W_F * kj_mol_to_kT
         return one_sided_exp(w_F)
@@ -278,14 +282,14 @@ if __name__ == '__main__':
     import os.path
 
     data_path = 'data/'
-    np.save(os.path.join(data_path, 'radii_samples_{}.npy'.format(smiles)), traj[:, :n])
-    np.save(os.path.join(data_path, 'scale_samples_{}.npy'.format(smiles)), traj[:, n:])
-    np.save(os.path.join(data_path, 'theta_samples_{}.npy'.format(smiles)), traj)
-    np.save(os.path.join(data_path, 'log_probs_{}.npy'.format(smiles)), log_probs)
+    onp.save(os.path.join(data_path, 'radii_samples_{}.npy'.format(smiles)), traj[:, :n])
+    onp.save(os.path.join(data_path, 'scale_samples_{}.npy'.format(smiles)), traj[:, n:])
+    onp.save(os.path.join(data_path, 'theta_samples_{}.npy'.format(smiles)), traj)
+    onp.save(os.path.join(data_path, 'log_probs_{}.npy'.format(smiles)), log_probs)
 
     print(acceptance_fraction)
     print('atom_names: ', mol.atom_names)
 
     posterior_predictions = [mol.predict_solvation_free_energy(*unpack(theta))[0] for theta in traj[::100]]
 
-    np.save(os.path.join(data_path, 'posterior_predictions_{}.npy'.format(smiles)), posterior_predictions)
+    onp.save(os.path.join(data_path, 'posterior_predictions_{}.npy'.format(smiles)), posterior_predictions)

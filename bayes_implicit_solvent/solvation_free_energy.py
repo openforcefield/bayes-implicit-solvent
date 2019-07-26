@@ -1,4 +1,5 @@
-import numpy as np
+import numpy as onp
+from autograd import numpy as np
 import pymbar
 from pkg_resources import resource_filename
 
@@ -38,16 +39,38 @@ def construct_gbsa_force(system):
     return gbsa
 
 
-from jax.scipy.special import logsumexp
-from jax import jit
+from autograd.scipy.special import logsumexp
+# from jax import jit
 from simtk import unit
 from bayes_implicit_solvent.constants import kB, temperature
 
 kj_mol_to_kT = 1.0 * unit.kilojoule_per_mole / (kB * temperature)
 
 #@jit
-def one_sided_exp(w_F):
+def one_sided_exp(w_F, compute_uncertainty=False):
+    """Clone of pymbar EXP that plays nice with autograd / jax.
+
+    (Cloned from https://github.com/choderalab/pymbar/blob/69d1f0ff680e9ac1c6a51a5a207ea28f3ed86740/pymbar/exp.py#L54-L132 )
+
+    Parameters
+    ----------
+    w_F : array
+        unitless works
+    compute_uncertainty : bool
+        whether to return an estimate of the uncertainty in DeltaF
+
+    Returns
+    -------
+    DeltaF : float
+        estimated free energy difference
+    dDeltaF : float (optional, if compute_uncertainty==True)
+        estimated standard deviation of DeltaF estimator
+    """
     DeltaF = - (logsumexp(- w_F) - np.log(len(w_F)))
+    if compute_uncertainty:
+        x = np.exp(- w_F - np.max(-w_F))
+        dDeltaF = np.std(x) / (np.mean(x) * np.sqrt(len(x)))
+        return DeltaF, dDeltaF
     return DeltaF
 
 def get_vacuum_samples(topology, system, positions, n_samples=100, thinning=10000):
