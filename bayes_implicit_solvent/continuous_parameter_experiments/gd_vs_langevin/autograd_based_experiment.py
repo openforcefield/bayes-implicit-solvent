@@ -11,7 +11,7 @@ from bayes_implicit_solvent.molecule import Molecule
 from bayes_implicit_solvent.utils import npy_sample_path_to_unitted_snapshots
 
 # 0. Load all molecules
-n_configuration_samples = 5
+n_configuration_samples = 25
 allowed_DeltaG_range = (-15, 5)
 path_to_vacuum_samples = resource_filename('bayes_implicit_solvent',
                                            'vacuum_samples/vacuum_samples_*.npy')
@@ -29,8 +29,6 @@ def load_dataset(path_to_vacuum_samples, allowed_DeltaG_range=(-15, 5), n_config
         i = path.find('mobley_')
         j = path.find('.npy')
         return path[i:j]
-
-    cids = list(map(extract_cid_key, paths_to_samples))
 
     molecules = []
     for path in paths_to_samples:
@@ -62,6 +60,20 @@ expt_uncertainties = np.array([mol.experimental_uncertainty for mol in molecules
 n_types = mbondi_model.number_of_nodes
 mbondi_type_slices = [mbondi_model.apply_to_molecule(mol.mol) for mol in molecules]
 
+print('saving freesolv_inputs.pkl...')
+distance_matrices = [m.distance_matrices for m in molecules]
+freesolv_inputs = dict(
+    distance_matrices=distance_matrices,
+    expt_means=expt_means,
+    expt_uncertainties=expt_uncertainties,
+    type_slices=mbondi_type_slices,
+    charges=[m.charges for m in molecules],
+    n_types=n_types,
+)
+from pickle import dump
+with open('freesolv_inputs.pkl', 'wb') as f:
+    dump(freesolv_inputs, f)
+print('... done!')
 
 def pack(radii, scales):
     """Given two length-n_types arrays, concatenate them into a single vector"""
@@ -160,6 +172,10 @@ def train_test_split(i):
     train_inds = np.array(list(set(inds).difference(set(test_inds))))
     return train_inds, test_inds
 
+for i in range(N_folds):
+    train_inds, test_inds = train_test_split(i)
+
+
 
 ll_dict = dict(gaussian=gaussian_log_likelihood, student_t=student_t_log_likelihood)
 
@@ -211,7 +227,8 @@ def gradient_descent(jac, x0, stepsize, num_iters, callback=None):
             callback(traj[-1], i, g)
     return traj
 
-from autograd.misc.optimizers import adam, rmsprop
+from autograd.misc.optimizers import adam
+
 optimizer_dict = dict(gradient_descent=gradient_descent, adam=adam)
 
 # TODO:
@@ -329,6 +346,19 @@ def test_train_test_splitter():
         assert (set(train_inds).union(test_inds) == set(inds))
 
 
+def rmse(predictions, inds=inds):
+    pred_kcal_mol = unreduce(predictions[inds])
+    expt_kcal_mol = unreduce(expt_means[inds])
+
+    rmse = np.sqrt(np.mean((pred_kcal_mol - expt_kcal_mol) ** 2))
+    return rmse
+
+def train_test_rmse(predictions, split=0):
+    train_inds, test_inds = train_test_split(split)
+    train_rmse = rmse(predictions, train_inds)
+    test_rmse = rmse(predictions, test_inds)
+    return train_rmse, test_rmse
+
 def test_generate_all_predictions():
     """Spot-check that the predicted free energies are reasonable
     (right shape, finite, RMSE (in kcal/mol) in a reasonable range)"""
@@ -381,25 +411,26 @@ def test_generate_all_predictions():
 np.random.seed(0)
 theta0 = pack(radii=mbondi_model.get_radii(), scales=mbondi_model.get_scale_factors())
 n_start = 10
-x0s = [(np.random.randn(len(theta0)) * 0.005) + theta0 for _ in range(n_start)]
+x0s = [(np.random.rand(len(theta0)) * 0.05) - 0.025 + theta0 for _ in range(n_start)]
 
 
 
 from collections import namedtuple
 Experiment = namedtuple('Experiment', ['x0', 'cv_fold', 'll', 'stepsize'])
-gd_stepsize = 1e-8
+gd_stepsize = dict(gaussian=1e-8, student_t=1e-6)
 experiments = []
 for x0 in x0s:
     for cv_fold in range(N_folds):
         for ll in ll_dict:
-            experiments.append(Experiment(x0=x0, cv_fold=cv_fold, ll=ll, stepsize=gd_stepsize))
+            experiments.append(Experiment(x0=x0, cv_fold=cv_fold, ll=ll, stepsize=gd_stepsize[ll]))
+print('# experiments: ', len(experiments))
 
 def save(experiment, traj, prediction_traj, name):
     from pickle import dump
     with open(name, 'wb') as f:
         dump(dict(experiment=experiment, traj=traj, prediction_traj=prediction_traj), f)
 
-def run_experiment(experiment):
+def run_experiment(experiment, num_iters=5000):
     theta0 = experiment.x0
     cv_fold = experiment.cv_fold
     ll = experiment.ll
@@ -409,17 +440,25 @@ def run_experiment(experiment):
     optimizer = lambda g, x0, num_iters, callback: gradient_descent(jac=g, x0=x0, stepsize=stepsize,
                                                                     num_iters=num_iters, callback=callback)
 
-    traj, prediction_traj = run_optimizer(optimizer, theta0=theta0, num_iters=100, cv_fold=cv_fold, ll=ll)
+    traj, prediction_traj = run_optimizer(optimizer, theta0=theta0, num_iters=num_iters, cv_fold=cv_fold, ll=ll)
 
     name = 'll={},k={},hash(theta0)={}.pkl'.format(ll, cv_fold, hash(tuple(theta0)))
     print('saving result to ', name)
     save(experiment, traj, prediction_traj, name)
+
+def save_expt_dataset():
+    """The ordering depends on the ordering of the vacuum_samples files!!"""
+    import numpy as onp
+    onp.savez('expt_dataset.npz', smiles=[m.smiles for m in molecules], expt_means=expt_means,
+              expt_uncertainties=expt_uncertainties)
 
 if __name__ == "__main__":
     import sys
     try:
         job_id = int(sys.argv[1]) - 1
     except:
+        from time import time
+        np.random.seed(int(str(hash(time()))[:5]))
         job_id = np.random.randint(len(experiments))
     print('job_id={}'.format(job_id))
     experiment = experiments[job_id]
