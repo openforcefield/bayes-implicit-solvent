@@ -1,7 +1,6 @@
 language: python
 
 # Run jobs on container-based infrastructure, can be overridden per job
-dist: trusty
 
 matrix:
   include:
@@ -14,10 +13,10 @@ matrix:
       env: PYTHON_VER=3.6
 
     - os: linux
-      python: 3.5
+      language: generic
       env: PYTHON_VER=3.5
     - os: linux
-      python: 3.6
+      language: generic
       env: PYTHON_VER=3.6
 
 before_install:
@@ -33,15 +32,13 @@ before_install:
 install:
 
     # Create test environment for package
-  - conda create -n test python=$PYTHON_VER pip pytest pytest-cov
+  - python devtools/scripts/create_conda_env.py -n=test -p=$PYTHON_VER devtools/conda-envs/test_env.yaml
+    # Activate the test environment
   - conda activate test
 
-    # Install pip only modules
-  - pip install codecov
 
     # Build and install package
-  - conda build --python=$PYTHON_VER devtools/conda-recipe
-  - conda install --use-local bayes_implicit_solvent
+  - python setup.py develop --no-deps
 
 
 script:
