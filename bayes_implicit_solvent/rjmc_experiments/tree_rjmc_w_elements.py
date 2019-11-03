@@ -281,7 +281,7 @@ from bayes_implicit_solvent.samplers import langevin
 train_smiles = [mol.smiles for mol in mols]
 
 def save():
-    name = 'tree_rjmc_from_wildcard_n_iter={}_ll={}_job_id={}'.format(
+    name = 'tree_rjmc_from_elemental_n_iter={}_ll={}_job_id={}'.format(
         n_iterations,
         ll,
         job_id
