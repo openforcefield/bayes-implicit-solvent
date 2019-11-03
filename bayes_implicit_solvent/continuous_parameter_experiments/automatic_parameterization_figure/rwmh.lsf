@@ -1,0 +1,16 @@
+#!/bin/bash
+#BSUB -J autoparam_figure
+#BSUB -n 1
+#BSUB -q cpuqueue
+#BSUB -W 4:00
+#BSUB -o %J.stdout
+#BSUB -eo %J.stderr
+#BSUB -L /bin/bash
+
+PATH=$PATH:/home/fassj/miniconda3/bin
+cd /home/fassj
+bash
+source activate bayesimplicit
+cd $LS_SUBCWD
+sleep 10
+python rwmh.py $LSB_JOBINDEX

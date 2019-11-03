@@ -39,7 +39,8 @@ def construct_gbsa_force(system):
     return gbsa
 
 
-from autograd.scipy.special import logsumexp
+#from autograd.scipy.special import logsumexp
+from jax.scipy.special import logsumexp
 # from jax import jit
 from simtk import unit
 from bayes_implicit_solvent.constants import kB, temperature
