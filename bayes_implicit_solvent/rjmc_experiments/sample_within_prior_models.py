@@ -79,30 +79,30 @@ if __name__ == "__main__":
         return within_model_traj, current_log_prob
 
 
-        for chunk in trange:
-            within_model_traj, current_log_prob = run_langevin(theta, stepsize)
-            while not np.isfinite(current_log_prob):
-                print("that didn't go well! trying again with smaller stepsize...")
-                print("\told stepsize: ", stepsize)
-                stepsize *= 0.5
-                print("\tnew stepsize ", stepsize)
-                within_model_traj, current_log_prob = run_langevin(theta0, stepsize)
+    for chunk in trange:
+        within_model_traj, current_log_prob = run_langevin(theta, stepsize)
+        while not np.isfinite(current_log_prob):
+            print("that didn't go well! trying again with smaller stepsize...")
+            print("\told stepsize: ", stepsize)
+            stepsize *= 0.5
+            print("\tnew stepsize ", stepsize)
+            within_model_traj, current_log_prob = run_langevin(theta0, stepsize)
 
-            theta = within_model_traj[-1]
+        theta = within_model_traj[-1]
 
-            predictions = get_predictions(within_model_traj[-1], types)
-            prediction_traj.append(predictions)
-            train_rmse = get_rmse_in_kcal_per_mol(predictions)
+        predictions = get_predictions(within_model_traj[-1], types)
+        prediction_traj.append(predictions)
+        train_rmse = get_rmse_in_kcal_per_mol(predictions)
 
-            trange.set_postfix(
-                current_log_prob=current_log_prob,
-                current_train_rmse=train_rmse,
-            )
+        trange.set_postfix(
+            current_log_prob=current_log_prob,
+            current_train_rmse=train_rmse,
+        )
 
-            for t in within_model_traj:
-                within_model_trajs.append(t)
+        for t in within_model_traj:
+            within_model_trajs.append(t)
 
-            if (chunk + 1) % 20 == 0:
-                save()
+        if (chunk + 1) % 20 == 0:
+            save()
 
-        save()
+    save()
