@@ -121,19 +121,14 @@ def get_probabilities_of_removing(tree):
 
 
 # TODO: define a prior that favors not having overly specific types that only catch a very small number of
-# TODO: atoms. One initial idea for how to do this: compute entropy of the type counts...
-from scipy.stats import entropy
+# TODO: atoms. One way to do this: dirichlet distribution with concentration parameter > 1.
+from scipy.stats import dirichlet
 
-
-def average_entropy(counts):
-    """entropy(counts) / log(len(counts))
-    maximum value possible: 1.0
-        when there are n>1 types, and each has exactly the same number of counts
-    minimum value possible: 0.0
-        when all of the counts are in one type
-    """
-    normalized_counts = counts / onp.sum(counts)
-    return entropy(normalized_counts) / onp.log(len(normalized_counts))
+def dirichlet_log_prior(counts, alpha=1.0):
+    alpha_vector = onp.ones_like(counts) * alpha
+    dp = dirichlet.logpdf(counts / counts.sum(), alpha=alpha_vector)
+    correction = - dirichlet.logpdf(onp.ones_like(counts) / len(counts), alpha=alpha_vector)
+    return dp + correction
 
 
 if __name__ == "__main__":
@@ -143,6 +138,11 @@ if __name__ == "__main__":
     from bayes_implicit_solvent.prior_checking import NoEmptyTypesPrior
 
     no_empty_types_prior = NoEmptyTypesPrior(dataset)
+    prior_alpha = 2.0
+
+    def log_prior(tree):
+        counts = get_type_counts(tree)
+        return no_empty_types_prior.log_prob(tree) + dirichlet_log_prior(counts, prior_alpha)
 
     print('using the following decorators:')
 
@@ -268,7 +268,9 @@ if __name__ == "__main__":
     # sample from prior by random walk...
     # TODO: add back continuous-parameter adjustment!
     focused_traj = [tree_traj[0]]
-    for _ in tqdm(range(1000)):
+    log_prior_traj = [log_prior(focused_traj[0])]
+    trange = tqdm(range(5000))
+    for _ in trange:
         tree = focused_traj[-1]
 
         if tree.probability_of_sampling_a_create_proposal > onp.random.rand():
@@ -277,7 +279,14 @@ if __name__ == "__main__":
             proposal_dict = sample_informed_deletion_proposal(tree)
 
         tree, log_prob_forward_over_reverse = proposal_dict['proposal'], proposal_dict['log_prob_forward_over_reverse']
-        if onp.exp(no_empty_types_prior.log_prob(tree) - log_prob_forward_over_reverse) > onp.random.rand():
+        proposed_log_prior = log_prior(tree)
+
+        if onp.exp(proposed_log_prior - log_prior_traj[-1] - log_prob_forward_over_reverse) > onp.random.rand():
             focused_traj.append(tree)
+            log_prior_traj.append(proposed_log_prior)
         else:
             focused_traj.append(focused_traj[-1])
+            log_prior_traj.append(log_prior_traj[-1])
+        trange.set_postfix(log_prior=log_prior_traj[-1], n_types=focused_traj[-1].number_of_nodes)
+
+    # TODO: plot distribution of n_types for a few choices of alpha: [0.5,1.0,1.5,2.0,5.0,10.0]...
