@@ -65,7 +65,7 @@ class BondProposal(DiscreteProposal):
 
         return {
             'proposal': proposal_smirks,
-            'log_prob_forward_over_reverse': self.log_prob_forward_over_reverse(initial_smirks, proposed_smirks),
+            'log_prob_forward_over_reverse': self.log_prob_forward_over_reverse(initial_smirks, proposal_smirks),
         }
 
 
@@ -201,6 +201,16 @@ class SMARTSTyper():
 
         return match_matrix
 
+    def assign_types_using_match_matrix(self, match_matrix):
+        """Process a binary match matrix into an integer array, assigning an integer to each atom."""
+        assert (match_matrix.shape[1] == self.n_types)
+        assert (np.all(match_matrix.sum(1) >= 1))  # every atom should be hit by at least one smarts pattern
+
+        inds = np.arange(match_matrix.shape[1])[::-1]
+        largest_match_inds = inds[np.argmax(match_matrix[:, ::-1], axis=1)]
+
+        return largest_match_inds
+
     def __repr__(self):
         return 'SMARTSTyper with {} patterns: '.format(len(self.smarts_list)) + str(self.smarts_list)
 
@@ -219,28 +229,29 @@ class FlatGBTyper(SMARTSTyper):
         super().__init__(smarts_list)
         self.n_types = len(self.smarts_list)
 
-    def get_indices_of_last_matches(self, match_matrix):
-        """Process a binary match matrix into an integer array, assigning an integer to each atom."""
-        assert (match_matrix.shape[1] == self.n_types)
-        assert (np.all(match_matrix.sum(1) >= 1))  # every atom should be hit by at least one smarts pattern
-
-        inds = np.arange(match_matrix.shape[1])[::-1]
-        largest_match_inds = inds[np.argmax(match_matrix[:, ::-1], axis=1)]
-
-        return largest_match_inds
 
     def get_gb_types(self, oemol):
         """For each atom in oemol, get the index of the last SMARTS string in the list that matches it"""
 
         match_matrix = self.get_matches(oemol)
-        gb_types = self.get_indices_of_last_matches(match_matrix)
+        gb_types = self.assign_types_using_match_matrix(match_matrix)
         return gb_types
 
     def __repr__(self):
         return 'GBTyper with {} types: '.format(self.n_types) + str(self.smarts_list)
 
+class ContinuousParameters():
 
-class GBTypingTree():
+    def sample_perturbation(self):
+        raise NotImplementedError
+
+class PerParticleParametersOBC2(ContinuousParameters):
+    def __init__(self, radius=0.1 * unit.nanometer, scale_factor=1.0):
+        self.radius = radius
+        self.scale_factor = scale_factor
+
+
+class GBTypingTree(SMARTSTyper):
     def __init__(self, default_parameters={'radius': 0.1 * unit.nanometer, 'scale_factor' : 0.85},
                  proposal_sigmas={'radius': 0.01 * unit.nanometer, 'scale_factor': 0.1},
                  un_delete_able_types=set(['*']), max_nodes=100):
@@ -315,9 +326,17 @@ class GBTypingTree():
         return list(self.G.nodes())
 
     @property
+    def smarts_list(self):
+        return self.ordered_nodes
+
+    @property
     def number_of_nodes(self):
         """The total number of nodes in the graph"""
         return len(self.nodes)
+
+    @property
+    def n_types(self):
+        return self.number_of_nodes
 
     @property
     def leaves(self):
@@ -444,6 +463,7 @@ class GBTypingTree():
         for i in range(self.number_of_nodes):
             self.set_scale_factor(self.ordered_nodes[i], scale_factors[i])
 
+    # TODO: refactor this
     def sample_creation_proposal(self, smirks_elaboration_proposal):
         """Propose to randomly decorate an existing type to create a new type,
         with a slightly different radius than the existing type.
@@ -498,7 +518,7 @@ class GBTypingTree():
     def sample_deletion_proposal(self, smirks_elaboration_proposal):
         """Sample a (delete-able) leaf node randomly and propose to delete it.
         Return a dict containing the new typing tree and the ratio of forward and reverse proposal probabilities."""
-
+        # TODO: Don't return dictionaries all the time!
         # Create a copy of the current typer, which we will modify and return
         proposal = deepcopy(self)
 
