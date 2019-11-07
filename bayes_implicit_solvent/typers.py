@@ -666,7 +666,7 @@ if __name__ == '__main__':
 
     all_bond_specifiers = ['@', '-', '#', '=', ':']
 
-    all_bondable_types = list(atomic_number_dict.keys())
+    all_bondable_types = ['*'] + list(atomic_number_dict.keys())
 
     # atomic_decorators list:
     ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'a', 'A']

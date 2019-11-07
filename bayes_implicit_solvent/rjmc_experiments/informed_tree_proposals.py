@@ -148,7 +148,7 @@ if __name__ == "__main__":
 
     all_bond_specifiers = ['@', '-', '#', '=', ':']
 
-    all_bondable_types = list(atomic_number_dict.keys())
+    all_bondable_types = ['*'] + list(atomic_number_dict.keys())
 
     # atomic_decorators list:
     ring_specifiers = ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'a', 'A']
@@ -248,13 +248,13 @@ if __name__ == "__main__":
         elaboration_probabilities = get_probabilities_of_elaborating(proposal)
         index_of_parent = proposal.ordered_nodes.index(parent_of_removed_node)
         elaboration_probability = elaboration_probabilities[index_of_parent]
-        probability_to_choose_right_decorator = smirks_elaboration_proposal.log_prob_forward_over_reverse(
+        log_probability_to_choose_right_decorator = smirks_elaboration_proposal.log_prob_forward_over_reverse(
             parent_of_removed_node, node_to_remove)
 
         # compute log probability of forward vs. reverse proposal
         log_prob_forward_over_reverse = onp.log(removal_probability)
-        log_prob_forward_over_reverse -= elaboration_probability
-        log_prob_forward_over_reverse -= probability_to_choose_right_decorator
+        log_prob_forward_over_reverse -= onp.log(elaboration_probability)
+        log_prob_forward_over_reverse -= log_probability_to_choose_right_decorator
 
         proposal_dict = {
             'proposal': proposal,
@@ -264,11 +264,11 @@ if __name__ == "__main__":
         return proposal_dict
 
 
-    # TODO: also select the decorator proportional to split-evenness...
-
+    # TODO: also select the decorator proportional to split-evenness?
+    # sample from prior by random walk...
+    # TODO: add back continuous-parameter adjustment!
     focused_traj = [tree_traj[0]]
-    for _ in tqdm(range(100)):
-        # TODO: measure forward and reverse proposal probabilities
+    for _ in tqdm(range(1000)):
         tree = focused_traj[-1]
 
         if tree.probability_of_sampling_a_create_proposal > onp.random.rand():
