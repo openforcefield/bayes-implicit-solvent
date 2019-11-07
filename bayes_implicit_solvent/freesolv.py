@@ -8,6 +8,8 @@ path_to_smiles_list = resource_filename('bayes_implicit_solvent', 'data/smiles.p
 
 from glob import glob
 
+from openeye import oechem
+
 with open(path_to_freesolv, 'r') as f:
     freesolv = f.read()
 db = []
@@ -35,7 +37,7 @@ def prepare_freesolv():
 
     print('example freesolv id extracted from mol2 filepath: ', extract_cid_key(mol2_paths[0]))
 
-    from openeye import oechem
+
 
 
     def load_oe_graph_mol(mol2_filepath):
