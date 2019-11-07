@@ -57,3 +57,24 @@ def check_no_empty_types(typer):
         return -np.inf
     else:
         return 0
+
+from bayes_implicit_solvent.utils import Dataset
+
+class NoEmptyTypesPrior():
+    def __init__(self, dataset):
+        assert(type(dataset) == Dataset)
+        self.dataset = dataset
+
+    def log_prob(self, typer):
+        match_matrices = self.dataset.get_match_matrices(typer.smarts_list)
+        assigned_types = [typer.assign_types_using_match_matrix(m) for m in match_matrices]
+        flat = np.hstack(assigned_types)
+        N = typer.number_of_nodes
+
+        # check that no type is unused, except the wildcard
+        counts = np.bincount(flat, minlength=N)
+        if (len(counts) > 1) and (np.min(counts[1:]) == 0):
+            # TODO: revisit [1:] slice if we change how wildcard is handled
+            return - np.inf
+        else:
+            return 0

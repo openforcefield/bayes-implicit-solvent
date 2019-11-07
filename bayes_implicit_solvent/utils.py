@@ -91,11 +91,47 @@ def get_substructure_matches(mol, subsearch):
                 matches[a.GetIdx()] = True
     return matches
 
-# TODO: Inspect cache hit / miss rate (and maybe also memory consumption) see if this is an appropriate choice
+# observation: I usually am doing many subsearch queries on the same fixed dataset.
+# TODO: I should replace this function with one that uses a constant dataset and only has the subsearch string vary...
+
+
 @lru_cache(maxsize=2 ** 12)
 def cached_substructure_matches(mol, subsearch_string):
     subsearch = smarts_to_subsearch(subsearch_string)
     return get_substructure_matches(mol, subsearch)
+
+
+def make_cached_substructure_matcher(mol_list):
+    @lru_cache(maxsize=2**12)
+    def cached_substructure_matches(subsearch_string):
+        """returns a list of length mol_list, where each element of the list is an array of
+        length """
+        subsearch = smarts_to_subsearch(subsearch_string)
+        return [get_substructure_matches(mol, subsearch) for mol in mol_list]
+    return cached_substructure_matches
+
+
+class Dataset():
+    def __init__(self, mol_list):
+        """"""
+        self.mol_list = mol_list
+        self.n_atoms_list = [self.mol_list[i].NumAtoms() for i in range(len(self.mol_list))]
+        self.cached_substructure_matcher = make_cached_substructure_matcher(mol_list)
+
+    def get_match_matrices(self, smarts_list):
+        n_smarts = len(smarts_list)
+        n_mols = len(self.mol_list)
+
+        match_lists = list(map(self.cached_substructure_matcher, smarts_list))
+        match_matrices = [np.vstack([l[i] for l in match_lists]).T for i in range(n_mols)]
+
+        # check shapes, since this is a bit nested / tricky...
+        assert(len(match_matrices) == n_mols)
+        for i, m in enumerate(match_matrices):
+            assert(m.shape[0] == self.n_atoms_list[i])
+            assert(m.shape[1] == n_smarts)
+        return match_matrices
+
 
 
 def convert_to_unitd_array(unitd_quantities):
