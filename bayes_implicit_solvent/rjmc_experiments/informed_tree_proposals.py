@@ -64,8 +64,10 @@ from bayes_implicit_solvent.gb_models.obc2_parameters import mbondi_model
 
 tree = mbondi_model
 tree.remove_node('[#14]')
-tree.add_child('[#1]~[#8]', '[#1]')
-tree.add_child('[#1]~[#6]', '[#1]')
+for i in [17, 35, 53]:
+    smirks = '[#{}]'.format(i)
+    tree.add_child(smirks, '*')
+    tree.un_delete_able_types.add(smirks)
 oemols = get_molecule_list()
 types = tree.apply_to_molecule_list(oemols)
 
@@ -142,7 +144,9 @@ if __name__ == "__main__":
 
     def log_prior(tree):
         counts = get_type_counts(tree)
-        return no_empty_types_prior.log_prob(tree) + dirichlet_log_prior(counts, prior_alpha)
+        if (counts[1:] == 0).sum() > 0:
+            return - onp.inf
+        return dirichlet_log_prior(counts[1:], prior_alpha)
 
     print('using the following decorators:')
 
@@ -180,17 +184,7 @@ if __name__ == "__main__":
     ]
     smirks_elaboration_proposal = SMIRKSElaborationProposal(smirks_elaborators=smirks_elaborators)
 
-    tree_traj = [tree]
-
     from tqdm import tqdm
-
-    for _ in tqdm(range(100)):
-        proposal_dict = tree_traj[-1].sample_create_delete_proposal(smirks_elaboration_proposal)
-        tree, log_prob_forward_over_reverse = proposal_dict['proposal'], proposal_dict['log_prob_forward_over_reverse']
-        if onp.exp(no_empty_types_prior.log_prob(tree) - log_prob_forward_over_reverse) > onp.random.rand():
-            tree_traj.append(tree)
-        else:
-            tree_traj.append(tree_traj[-1])
 
     from copy import deepcopy
 
@@ -267,9 +261,9 @@ if __name__ == "__main__":
     # TODO: also select the decorator proportional to split-evenness?
     # sample from prior by random walk...
     # TODO: add back continuous-parameter adjustment!
-    focused_traj = [tree_traj[0]]
+    focused_traj = [tree]
     log_prior_traj = [log_prior(focused_traj[0])]
-    trange = tqdm(range(5000))
+    trange = tqdm(range(10000))
     for _ in trange:
         tree = focused_traj[-1]
 
@@ -290,3 +284,12 @@ if __name__ == "__main__":
         trange.set_postfix(log_prior=log_prior_traj[-1], n_types=focused_traj[-1].number_of_nodes)
 
     # TODO: plot distribution of n_types for a few choices of alpha: [0.5,1.0,1.5,2.0,5.0,10.0]...
+    n_types_traj = [tree.number_of_nodes for tree in focused_traj]
+
+    import matplotlib.pyplot as plt
+
+    plt.plot(n_types_traj)
+    plt.show()
+    from pickle import dump
+    with open('prior_samples_alpha={}.pkl'.format(prior_alpha), 'wb') as f:
+        dump(focused_traj, f)
