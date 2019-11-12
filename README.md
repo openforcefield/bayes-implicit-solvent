@@ -1,10 +1,55 @@
 # bayes-implicit-solvent
 experiments with Bayesian calibration of implicit solvent models
 
-## Contents
+## Highlights
+
+### Colab notebook illustrating continuous parameter sampling
+
+Our likelihood function depends on comparing ~600 calculated and experimental hydration free energies, which is computationally expensive and must be done at each sampling iteration.
+
+Gradients of this likelihood are computed efficiently using Jax, and used to compare Langevin Monte Carlo with gradient descent. [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github//openforcefield/bayes-implicit-solvent/blob/master/notebooks/fast_likelihood_gradients_in_jax_(batches_of_component_gradients).ipynb)
+
+![continuous-parameter-sampling](https://user-images.githubusercontent.com/5759036/68684532-a43c2780-0536-11ea-8144-25a30b106279.png)
+
+### Demonstration of automatic parameterization
+A few Markov Chain Monte Carlo algorithms (implemented in [`samplers.py`](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/bayes_implicit_solvent/samplers.py)) are applied to the task of sampling the continuous parameters of implicit solvent models.
+
+![automatic_parameterization](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/bayes_implicit_solvent/continuous_parameter_experiments/automatic_parameterization_figure/automatic_parameterization_draft.png?raw=true)
+
+### Comparisons of Gaussian and Student-t likelihood behavior
+
+One observation from this study has been that the tail behavior of the likelihood function comparing experimental and predicted free energies has a pronounced affect on the behavior of samplers.
+
+![gaussian-vs-student-t](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/RW-MH-RMSE.png?raw=true)
+
+### RJMC experiments
+Atom-typing schemes are represented using trees of SMIRKS patterns, implemented in the file [`typers.py`](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/bayes_implicit_solvent/typers.py), along with uniform cross-model proposals that elaborate upon or delete the types within these schemes.
+
+Scripts for numerical experiments with RJMC and various choices of prior, likelihood, within-model sampler, and constraints on the discrete model space are in `bayes_implicit_solvent/rjmc_experiments/`.
+
+Using Langevin Monte Carlo for within-model sampling, and enforcing that elemental types are retained (see the script [`tree_rjmc_w_elements.py`](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/bayes_implicit_solvent/rjmc_experiments/tree_rjmc_w_elements.py)), we obtain the following result.
+
+![rjmc_pilot_figure](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/bayes_implicit_solvent/rjmc_experiments/rjmc_pilot_figure.png?raw=true)
+
+In ongoing work, we are attempting to define better-informed cross-model proposals and use more reasonable prior restraints to improve the chance of converging cross-model sampling. Priors and cross-model proposals that are informed by the number of atoms that fall into each type are being prototyped here [`informed_tree_proposals.py`](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/bayes_implicit_solvent/rjmc_experiments/informed_tree_proposals.py).
+
+### Differentiable atom-typing experiments
+
+As an alternative to assigning parameters using trees of SMIRKS, we also briefly considered assigning parameters using differentiable functions of SMIRKS features.
+This would allow uncertainty in the parameter-assignment scheme to be represented using a posterior distribution over continuous variables only, rather than a challenging mixed continuous/discrete space.
+
+Linear functions of SMIRKS fingerprints to radii and scales ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/linear-typing-using-atom-features-only-student-t-loss.ipynb))
+
+![linear-typing-student-t](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/linear_parameterizer_student_t_loss/linear_typing_student_t_loss.gif?raw=true)
+
+Multilayer perceptron from SMIRKS fingerprints to radii, scales, and parameters controlling charge-hydration asymmetry ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/feedforward-typing-using-smarts-and-neighbor-features-student-t%2Bcha-df%3D7-and-per-particle-psis-big-batch.ipynb)) ![neuralized-cha](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/neuralized_typing_with_cha.gif?raw=true)
+
+(Convolutional typing schemes appeared more difficult to optimize numerically, but may be an interesting direction for future work ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/convolutional-typing.ipynb)))
+
+## Detailed contents
 
 ### `bayes_implicit_solvent`
-* `gb_models/` -- Clones the OpenMM GBSA OBC force in numpy (vectorized and non-vectorized) in autodiff frameworks, since I wasn't able to compute gradients w.r.t. per-particle parameters in CustomGBForce.
+* `gb_models/` -- Clones the OpenMM GBSA OBC force using autodiff frameworks such as `jax` and HIPS `autograd`, to allow differentiating w.r.t. per-particle parameters.
 * `molecule.py` -- Defines a class `Molecule` that predicts solvation free energy as function of GB parameters and compares to an experimental value, for use in posterior sampling.
 * `prior_checking.py` -- methods for checking whether a typing scheme is legal
 * `samplers.py` -- defines parameter samplers: random-walk Metropolis-Hastings, Langevin (unadjusted and Metropolis-Adjusted), RJMC
