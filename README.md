@@ -114,6 +114,6 @@ Exploratory or visualization-focused notebooks.
 #### `nelder_mead_plots/`
 * baseline of using Nelder-Mead simplex minimization rather than gradient-informed optimization or sampling ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/inspect%20nelder%20mead%20results.ipynb))
 
-![image](https://user-images.githubusercontent.com/5759036/68699968-1706cc00-0552-11ea-86c4-8840f1628f85.png)
-![image](https://user-images.githubusercontent.com/5759036/68699996-238b2480-0552-11ea-9a04-00541382c2c0.png)
+<img src="https://user-images.githubusercontent.com/5759036/68699968-1706cc00-0552-11ea-86c4-8840f1628f85.png" width="400">
+<img src="https://user-images.githubusercontent.com/5759036/68699996-238b2480-0552-11ea-9a04-00541382c2c0.png" width="400">
 
