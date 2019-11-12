@@ -111,9 +111,18 @@ Exploratory or visualization-focused notebooks.
 #### `carboxyl-torsion-plots/`
 * diagnostic plots for some slow torsional degrees of freedom involving carboxylic acids, encountered when preparing vacuum samples for use in reweighting-based likelihood estimator
 
+#### `projections/`
+* diagnostic tICA projections of gas-phase simulations
+
 #### `nelder_mead_plots/`
 * baseline of using Nelder-Mead simplex minimization rather than gradient-informed optimization or sampling ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/inspect%20nelder%20mead%20results.ipynb))
 
-<img src="https://user-images.githubusercontent.com/5759036/68699968-1706cc00-0552-11ea-86c4-8840f1628f85.png" width="400">
-<img src="https://user-images.githubusercontent.com/5759036/68699996-238b2480-0552-11ea-9a04-00541382c2c0.png" width="400">
+<img src="https://user-images.githubusercontent.com/5759036/68699968-1706cc00-0552-11ea-86c4-8840f1628f85.png" width="400"> <img src="https://user-images.githubusercontent.com/5759036/68699996-238b2480-0552-11ea-9a04-00541382c2c0.png" width="400">
 
+#### `rjmc-figures/`
+* illustrative example of using RJMC to sample Gaussian mixture models ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/birth-death%20moves%20for%20RJMC%20of%20GMMs.ipynb))
+
+#### `rjmc_animation_march30/`, `rjmc_animation_march30_running/`, `rjmc_animation_march30_weighted/`
+* animated GIFs inspecting a long run of tree RJMC, plotting either raw RMSE, RMSE of running-median prediction, or uncertainty-weighted RMSE ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/inspect-march-30-rjmc-result.ipynb))
+
+![dashboard](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/rjmc_animation_march30_running/rjmc_dashboard_w_running_median.gif?raw=true)
