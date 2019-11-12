@@ -126,3 +126,6 @@ Exploratory or visualization-focused notebooks.
 * animated GIFs inspecting a long run of tree RJMC, plotting either raw RMSE, RMSE of running-median prediction, or uncertainty-weighted RMSE ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/inspect-march-30-rjmc-result.ipynb))
 
 ![dashboard](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/rjmc_animation_march30_running/rjmc_dashboard_w_running_median.gif?raw=true)
+
+
+**TODO in this section: describe `freesolvbest-case-rmse.png`, AIS results, AIS vs RJMC diagnostic tests**
