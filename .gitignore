@@ -105,3 +105,8 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# h5 files for now
+*.h5
+*.mol2
+*.npy

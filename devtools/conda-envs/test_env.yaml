@@ -1,16 +1,26 @@
 name: test
 channels:
+  - openeye
+  - conda-forge
+  - omnia
+
 dependencies:
     # Base depends
   - python
   - pip
+  - setuptools
+  - networkx
+  - tqdm
+  - numpy
+  - matplotlib
+  - openeye-toolkits
+  - openmmtools
+  - autograd
+  - scipy
+  - pymbar
+  - jax
+
 
     # Testing
   - pytest
   - pytest-cov
-  - codecov
-
-    # Pip-only installs
-  #- pip:
-  #  - codecov
-

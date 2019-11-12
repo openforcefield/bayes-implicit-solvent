@@ -1,0 +1,1 @@
+bsub -J "freesolv[1-642]" < prepare_vacuum_samples.lsf

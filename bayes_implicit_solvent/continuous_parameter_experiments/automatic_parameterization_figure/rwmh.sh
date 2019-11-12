@@ -1,0 +1,1 @@
+bsub -J "rwmh[1-100]" < rwmh.lsf

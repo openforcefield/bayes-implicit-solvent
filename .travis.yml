@@ -11,6 +11,9 @@ matrix:
     - os: osx
       language: generic
       env: PYTHON_VER=3.6
+    - os: osx
+      language: generic
+      env: PYTHON_VER=3.7
 
     - os: linux
       language: generic
@@ -18,6 +21,9 @@ matrix:
     - os: linux
       language: generic
       env: PYTHON_VER=3.6
+    - os: linux
+      python: 3.7
+      env: PYTHON_VER=3.7
 
 before_install:
     # Additional info about the build
@@ -30,12 +36,10 @@ before_install:
   - python -V
 
 install:
-
     # Create test environment for package
   - python devtools/scripts/create_conda_env.py -n=test -p=$PYTHON_VER devtools/conda-envs/test_env.yaml
     # Activate the test environment
   - conda activate test
-
 
     # Build and install package
   - python setup.py develop --no-deps

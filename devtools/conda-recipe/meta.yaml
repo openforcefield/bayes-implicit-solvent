@@ -9,9 +9,18 @@ build:
   number: 0
 
 requirements:
-  build:
+  host:
     - python
     - setuptools
+    - networkx
+    - tqdm
+    - numpy
+    - matplotlib
+    - openeye-toolkits
+    - openmmtools
+    - autograd
+    - scipy
+    - pymbar
 
   run:
     - python
@@ -23,5 +32,5 @@ test:
     - bayes_implicit_solvent
 
 about:
-  home: add_url_here
+  home: https://github.com/openforcefield/bayes-implicit-solvent/
   license: MIT License
