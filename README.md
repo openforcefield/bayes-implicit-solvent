@@ -95,4 +95,25 @@ Copied from MolSSI's `cookiecutter-compchem`. Requirements listed in `devtools/c
 To-do
 
 ### `notebooks`
-Exploratory or visualization-focused notebooks to be documented further.
+Exploratory or visualization-focused notebooks.
+
+#### `elaborate_typing_animation/`
+* animated GIFs of initial slow typing-tree sampling code (also affected by a bug that was later corrected, where the charges for some molecules were drastically affected incorrectly prepared). The number of types sampled increased much more than expected, and the sampler became slower the more types were present. ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/plot%20elaborate%20rjmc%20typing%20trees--%20now%20with%20less%20smirks-overlap!.ipynb))
+![image](https://user-images.githubusercontent.com/5759036/68699657-8f20c200-0551-11ea-8528-46289f9d1e40.png)
+
+#### `bugfixed_typing_animation/`
+* animated GIF of early tree-RJMC run
+
+#### `extended-sim-projections/`
+* projections and of slow-relaxing torsions in some molecules from FreeSolv
+![image](https://user-images.githubusercontent.com/5759036/68699790-c0998d80-0551-11ea-8bf8-5bde502a6d29.png)
+
+#### `carboxyl-torsion-plots/`
+* diagnostic plots for some slow torsional degrees of freedom involving carboxylic acids, encountered when preparing vacuum samples for use in reweighting-based likelihood estimator
+
+#### `nelder_mead_plots/`
+* baseline of using Nelder-Mead simplex minimization rather than gradient-informed optimization or sampling ([notebook](https://github.com/openforcefield/bayes-implicit-solvent/blob/master/notebooks/inspect%20nelder%20mead%20results.ipynb))
+
+![image](https://user-images.githubusercontent.com/5759036/68699968-1706cc00-0552-11ea-86c4-8840f1628f85.png)
+![image](https://user-images.githubusercontent.com/5759036/68699996-238b2480-0552-11ea-9a04-00541382c2c0.png)
+
