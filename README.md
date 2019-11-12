@@ -4,7 +4,7 @@ experiments with Bayesian calibration of implicit solvent models
 ## Contents
 
 ### `bayes_implicit_solvent`
-* `gb_models` -- Clones the OpenMM GBSA OBC force in numpy (vectorized and non-vectorized) in autodiff frameworks, since I wasn't able to compute gradients w.r.t. per-particle parameters in CustomGBForce.
+* `gb_models/` -- Clones the OpenMM GBSA OBC force in numpy (vectorized and non-vectorized) in autodiff frameworks, since I wasn't able to compute gradients w.r.t. per-particle parameters in CustomGBForce.
 * `molecule.py` -- Defines a class `Molecule` that predicts solvation free energy as function of GB parameters and compares to an experimental value, for use in posterior sampling.
 * `prior_checking.py` -- methods for checking whether a typing scheme is legal
 * `samplers.py` -- defines parameter samplers: random-walk Metropolis-Hastings, Langevin (unadjusted and Metropolis-Adjusted), RJMC
@@ -16,10 +16,17 @@ experiments with Bayesian calibration of implicit solvent models
 
 (Currently contains some code that needs to be removed or refactored. `proposals.py` defines the following classes: `Proposal`, `RadiusInheritanceProposal`, `AddOrDeletePrimitiveAtEndOfList`, `AddOrDeletePrimitiveAtRandomPositionInList`, `SwapTwoPatterns`, `MultiProposal`, which were used in initial experiments that did not use a tree representation of the typing scheme. `prepare_freesolv.py` uses OpenEye to construct OEMol objects, assign partial charges, etc. starting from a list of SMILES strings.)
 
-#### `bayes_implicit_solvent/continuous-parameter-experiments`
+#### `bayes_implicit_solvent/continuous-parameter-experiments/`
 * `elemental_types_mala.py` -- Use Metropolis-adjusted Langevin to sample the radii and scales in the elemtnal-types-only model
 * `hydrogen_or_not.py` -- Toy model containing just two "types" -- "hydrogen" vs "not hydrogen" so we can plot the parameter space in 2D for inspection. Attempt to fit GB radii using this restricted typing scheme on subsets of FreeSolv. Also check how the results depend on the number of configuration-samples used in the hydration free energy estimates.
 * `smirnoff_types.py` -- Use random-walk Metropolis-Hastings to sample GB radii for models restricted to use the same types defined in the nonbonded force section of smirnoff99frosst.
+
+and many more to be documented further
+
+#### `bayes_implicit_solvent/rjmc_experiments/`
+* `informed_tree_proposals.py` -- Experiments with constructing guided discrete-model proposals, as well as with defining more effective priors for the discrete models
+* `tree_rjmc_start_from_wildcard.py` -- Experiments running RJMC on GB typing trees starting from wildcard type and building up from there.
+* `tree_rjmc_w_elements.py` -- Experiments running RJMC on GB typing trees, keeping elemental types as un-delete-able nodes.
 
 #### `bayes_implicit_solvent/data`
 See its readme: contains freesolv and some numerical results in pickle or numpy archives.
@@ -43,4 +50,4 @@ Copied from MolSSI's `cookiecutter-compchem`. Requirements listed in `devtools/c
 To-do
 
 ### `notebooks`
-Exploratory or visualization-focused notebooks.
+Exploratory or visualization-focused notebooks to be documented further.
