@@ -1,0 +1,17 @@
+#!/bin/bash
+#BSUB -J tree_rjmc
+#BSUB -n 1
+#BSUB -R "rusage[mem=16]"
+#BSUB -q cpuqueue
+#BSUB -W 40:00
+#BSUB -o %J.stdout
+#BSUB -eo %J.stderr
+#BSUB -L /bin/bash
+
+PATH=$PATH:/home/fassj/miniconda3/bin
+export OE_LICENSE="/home/fassj/oe/oe_license.txt"
+source activate bayesimplicit
+cd $LS_SUBCWD
+sleep 10
+python tree_rjmc_from_wildcard.py $LSB_JOBINDEX gaussian
+
