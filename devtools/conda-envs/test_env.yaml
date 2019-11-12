@@ -3,6 +3,7 @@ channels:
   - openeye
   - conda-forge
   - omnia
+
 dependencies:
     # Base depends
   - python
@@ -17,11 +18,9 @@ dependencies:
   - autograd
   - scipy
   - pymbar
+  - jax
+
 
     # Testing
   - pytest
   - pytest-cov
-
-    # Pip-only installs
-  - pip:
-    - codecov
