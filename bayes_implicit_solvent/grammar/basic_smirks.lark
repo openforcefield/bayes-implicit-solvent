@@ -1,0 +1,69 @@
+start : environment
+
+// atomic primitives
+atomic_primitive : wildcard
+    | atomic_number
+    | aromatic | aliphatic
+    | valence
+    | connectivity
+    | degree
+    | h_count
+    | ring_size
+    | ring_membership
+    | formal_charge
+    | aromatic
+    | aliphatic
+wildcard : "*"
+atomic_number : "#" NUMBER
+degree : "D" NUMBER
+valence : "v" NUMBER
+connectivity : total_connectivity | ring_connectivity
+total_connectivity : "X" NUMBER
+ring_connectivity : "x" NUMBER
+h_count : total_h_count | implicit_h_count
+total_h_count : "H" NUMBER
+implicit_h_count : "h" NUMBER
+ring_size : "r" NUMBER*
+ring_membership : "R" NUMBER*
+formal_charge : "+" NUMBER | "-" NUMBER
+aromatic : "a"
+aliphatic : "A"
+
+// logic
+not : "!"
+connective : and | or
+and : "&" | ";"
+or : ","
+
+// composition
+atomic_environment : atomic_primitive
+    | atomic_environment connective atomic_environment
+    | not atomic_environment
+    | atomic_environment atomic_environment*
+
+atom :  atomic_environment
+    |  "[" [atomic_environment] "]"
+    | "[" [atomic_environment] ":" NUMBER "]"
+
+// bond primitivies
+bond_primitive : any_bond
+    | single_bond
+    | double_bond
+    | triple_bond
+    | aromatic_bond
+    | any_ring_bond
+any_bond : "~"
+any_ring_bond : "@"
+single_bond : "-"
+double_bond : "="
+triple_bond : "#"
+aromatic_bond : ":"
+
+// composition
+bond : bond_primitive | bond connective bond | not bond | bond bond*
+
+environment : atom
+            | environment bond environment
+            | environment "(" (bond environment) ")"
+            
+%import common.NUMBER
