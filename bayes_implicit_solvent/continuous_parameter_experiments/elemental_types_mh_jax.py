@@ -22,7 +22,7 @@ path_to_vacuum_samples = resource_filename('bayes_implicit_solvent',
 paths_to_samples = glob(path_to_vacuum_samples)
 np.random.seed(0)
 np.random.shuffle(paths_to_samples)
-paths_to_samples = paths_to_samples[::2]
+paths_to_samples = paths_to_samples
 
 print('number of molecules being considered: {}'.format(len(paths_to_samples)))
 
@@ -116,9 +116,13 @@ from scipy.stats import norm
 
 
 if __name__ == '__main__':
-    import sys
-    ll = sys.argv[1]
-    assert ( ll in {'student-t', 'gaussian'})
+
+    try:
+        import sys
+        ll = sys.argv[1]
+        assert ( ll in {'student-t', 'gaussian'})
+    except:
+        ll = 'student-t'
     print('using {} likelihood'.format(ll))
 
     if ll == 'student-t':
@@ -160,9 +164,9 @@ if __name__ == '__main__':
     if ll == 'gaussian':
         stepsize *= 0.25
 
-    mh_result = random_walk_mh(x0, log_prob_fun, n_steps=100000, stepsize=stepsize)
+    mh_result = random_walk_mh(x0, log_prob_fun, n_steps=10000, stepsize=stepsize)
 
-    np.savez('freesolv_mh_jax_march28_{}_ll.npz'.format(ll),
+    np.savez('freesolv_mh_jax_feb11_{}_ll.npz'.format(ll),
              traj=mh_result[0],
              log_prob_traj=mh_result[1],
              expt_means=expt_means,
