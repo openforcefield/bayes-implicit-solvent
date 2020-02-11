@@ -38,8 +38,6 @@ def prepare_freesolv():
     print('example freesolv id extracted from mol2 filepath: ', extract_cid_key(mol2_paths[0]))
 
 
-
-
     def load_oe_graph_mol(mol2_filepath):
         """Load a single OpenEye molecule from a mol2 file.
 
@@ -75,13 +73,13 @@ def prepare_freesolv():
 
     import numpy as np
 
-    from openforcefield.typing.engines.smirnoff import ForceField, generateTopologyFromOEMol
+    from openforcefield.topology import Molecule
+    from openforcefield.typing.engines.smirnoff import ForceField
     import openforcefield
 
     print(openforcefield._version.get_versions())
 
-    ff = ForceField(resource_filename('bayes_implicit_solvent', 'data/smirnoff99Frosst.offxml'))
-
+    forcefield = ForceField('openff-1.0.0.offxml')
 
     def fetch_oemol(smiles):
         cid_key = smiles_to_cid[smiles]
@@ -90,15 +88,23 @@ def prepare_freesolv():
 
     def generate_mol_top_sys_pos(smiles):
         """Generate an openmm topology, openmm system, and coordinate array from a smiles string"""
-        mol = fetch_oemol(smiles)
+        oemol = fetch_oemol(smiles)
 
-        coord_dict = mol.GetCoords()
+        coord_dict = oemol.GetCoords()
         positions = np.array([coord_dict[key] for key in coord_dict])
 
-        topology = generateTopologyFromOEMol(mol)
-        system = ff.createSystem(topology, [mol])
+        ff_mol = Molecule.from_openeye(
+            oemol, allow_undefined_stereo=True)
+        ff_topology = ff_mol.to_topology()
+        mm_topology = ff_topology.to_openmm()
 
-        return mol, topology, system, positions
+        system = forcefield.create_openmm_system(
+            ff_topology,
+            charge_from_molecules=[ff_mol],
+            allow_nonintegral_charges=True,
+        )
+
+        return oemol, mm_topology, system, positions
 
 
     mol_top_sys_pos_list = []
